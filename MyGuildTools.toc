@@ -1,0 +1,8 @@
+﻿##Interface: 11508
+##Author: Kirby2112
+##Version: 0.1.0
+##SavedVariables: MGTConfig
+##Title: |cFF0088FFMyGuildTools|r (Incompatible!)
+##Notes: This addon is not compatible with Retail.
+
+MyGuildTools-IncorrectGameVersion.lua
