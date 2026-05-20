@@ -267,7 +267,7 @@ end
 
 local guildInviteBox = CreateFrame("Frame", nil, GTIOFrame, "BackdropTemplate")
 guildInviteBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
-guildInviteBox:SetSize(420, 72)
+guildInviteBox:SetSize(420, 112)
 guildInviteBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -305,6 +305,21 @@ end)
 local chkIOGuildInviteMenuText = guildInviteBox:CreateFontString(nil, nil, "GameFontHighlight")
 chkIOGuildInviteMenuText:SetPoint("LEFT", chkIOGuildInviteMenu, "RIGHT", 0, 1)
 chkIOGuildInviteMenuText:SetText(L["Add a right-click menu to /ginvite"])
+
+local guildInviteKeyHint = guildInviteBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+guildInviteKeyHint:SetPoint("TOPLEFT", chkIOGuildInviteMenu, "BOTTOMLEFT", 0, -8)
+guildInviteKeyHint:SetPoint("LEFT", guildInviteBox, "LEFT", 28, 0)
+guildInviteKeyHint:SetPoint("RIGHT", guildInviteBox, "RIGHT", -12, 0)
+guildInviteKeyHint:SetJustifyH("LEFT")
+guildInviteKeyHint:SetJustifyV("TOP")
+guildInviteKeyHint:SetSpacing(4)
+guildInviteKeyHint:SetText(L["Guild invite key hint"])
+
+local lblTip = GTIOFrame:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblTip:SetPoint("BOTTOMLEFT", GTIOFrame, "BOTTOMLEFT", 12, 12)
+lblTip:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -12, 12)
+lblTip:SetJustifyH("CENTER")
+lblTip:SetText(L["Tip line"])
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)

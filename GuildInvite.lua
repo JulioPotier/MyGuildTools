@@ -31,6 +31,61 @@ local function GetContextPlayerName(contextData)
 	return nil
 end
 
+local function NormalizePlayerName(name)
+	if not name or name == "" then
+		return nil
+	end
+	-- Ambiguate("Name-Realm", "none") keeps realm when present; good for equality checks.
+	return Ambiguate(name, "none")
+end
+
+local function ResolveUnitFromPlayerName(playerName)
+	playerName = NormalizePlayerName(playerName)
+	if not playerName then
+		return nil
+	end
+
+	local function unitMatches(unit)
+		if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
+			return false
+		end
+		return NormalizePlayerName(GetUnitName(unit, true)) == playerName
+	end
+
+	-- Common singletons
+	local singletons = { "target", "mouseover", "focus" }
+	for i = 1, #singletons do
+		local u = singletons[i]
+		if unitMatches(u) then
+			return u
+		end
+	end
+
+	-- Party / raid
+	for i = 1, 4 do
+		local u = "party" .. i
+		if unitMatches(u) then
+			return u
+		end
+	end
+	for i = 1, 40 do
+		local u = "raid" .. i
+		if unitMatches(u) then
+			return u
+		end
+	end
+
+	-- Nearby players via nameplates (best-effort)
+	for i = 1, 40 do
+		local u = "nameplate" .. i
+		if unitMatches(u) then
+			return u
+		end
+	end
+
+	return nil
+end
+
 local function HideGinviteButton()
 	if popup then
 		popup:Hide()
@@ -86,12 +141,62 @@ local function RegisterContextMenus()
 			end
 
 			rootDescription:CreateDivider()
-			rootDescription:CreateButton("/ginvite", function()
+			local targetHasGuild = false
+			local guildUnit = unit
+			if (not guildUnit or not UnitExists(guildUnit)) and playerName then
+				guildUnit = ResolveUnitFromPlayerName(playerName)
+			end
+			if guildUnit and UnitExists(guildUnit) and UnitIsPlayer(guildUnit) then
+				local guildName = GetGuildInfo(guildUnit)
+				targetHasGuild = guildName ~= nil and guildName ~= ""
+			end
+
+			local button = rootDescription:CreateButton("/ginvite", function()
+				if targetHasGuild then
+					return
+				end
 				AddonTable.ShowGinviteButton(playerName)
 			end)
+			if targetHasGuild and button and button.SetEnabled then
+				button:SetEnabled(false)
+			end
 		end)
 	end
 end
+
+-- Raccourci clavier :
+-- /mgtginvite, ou macro « /click MGTGinviteKeybindButton » puis touche native sur la barre.
+local function InviteTargetViaGinvite()
+	if InCombatLockdown() then
+		print("|cFF0088FF[MyGuildTools]|r |cFFFF0000Cannot use /ginvite during combat.|r")
+		return
+	end
+
+	local unit = "target"
+	if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then
+		return
+	end
+
+	local guildName = GetGuildInfo(unit)
+	if guildName ~= nil and guildName ~= "" then
+		return
+	end
+
+	local playerName = GetUnitName(unit, true)
+	if not playerName or playerName == "" then
+		return
+	end
+
+	AddonTable.ShowGinviteButton(playerName)
+end
+
+SLASH_MGTGINVITE1 = "/mgtginvite"
+SlashCmdList["MGTGINVITE"] = InviteTargetViaGinvite
+
+local keybindStub = CreateFrame("Button", "MGTGinviteKeybindButton", UIParent)
+keybindStub:Hide()
+keybindStub:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+keybindStub:SetScript("OnClick", InviteTargetViaGinvite)
 
 popup = CreateFrame("Frame", "MGTGinvitePopup", UIParent, "BackdropTemplate")
 popup:SetFrameStrata("FULLSCREEN_DIALOG")
