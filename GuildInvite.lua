@@ -1,4 +1,5 @@
 local AddonName, AddonTable = ...
+local L = AddonTable.Localize
 
 local popup
 local inviteButton
@@ -29,6 +30,102 @@ local function GetContextPlayerName(contextData)
 		return GetUnitName(unit, true)
 	end
 	return nil
+end
+
+local function ShowNameInvitePopup()
+	-- Provide the "Add Guild Member" dialog even if the client doesn't expose it directly.
+	if not StaticPopupDialogs or not StaticPopup_Show then
+		return false
+	end
+
+	local function Report(msg)
+		print("|cFF0088FF[MyGuildTools]|r " .. msg)
+	end
+
+	local function TryGuildInvite(name)
+		-- Some clients (or private servers) may not expose the same APIs.
+		if C_GuildInfo and C_GuildInfo.Invite then
+			local ok = pcall(C_GuildInfo.Invite, name)
+			if ok then
+				return true
+			end
+		end
+		if GuildInvite then
+			local ok = pcall(GuildInvite, name)
+			if ok then
+				return true
+			end
+		end
+		return false
+	end
+
+	if not StaticPopupDialogs.MGT_ADD_GUILD_MEMBER then
+		StaticPopupDialogs.MGT_ADD_GUILD_MEMBER = {
+			text = L and L["Add Guild Member"] or "Add Guild Member",
+			button1 = ACCEPT,
+			button2 = CANCEL,
+			hasEditBox = 1,
+			maxLetters = 50,
+			timeout = 0,
+			whileDead = 1,
+			hideOnEscape = 1,
+			preferredIndex = 3,
+			OnShow = function(self)
+				if self.editBox then
+					self.editBox:SetText("")
+					self.editBox:SetFocus()
+				end
+			end,
+			OnAccept = function(self)
+				local dialog = self
+				if not dialog.editBox and dialog.GetParent then
+					dialog = dialog:GetParent()
+				end
+				local editBox = dialog and dialog.editBox or nil
+				local name = editBox and editBox:GetText() or nil
+				if not name then
+					return
+				end
+
+				name = name:gsub("^%s+", ""):gsub("%s+$", "")
+				if name == "" then
+					return
+				end
+
+				-- Classic Era invite expects "Name" (no realm). Strip "-Realm" if user pasted it.
+				name = name:gsub("%s+", " ")
+				name = name:match("^([^-]+)") or name
+
+				if not IsInGuild or not IsInGuild() then
+					Report("You are not in a guild.")
+					return
+				end
+				if CanGuildInvite and not CanGuildInvite() then
+					Report("You don't have permission to invite guild members.")
+					return
+				end
+
+				-- Try direct API. If it doesn't work on this client, fall back to the secure /ginvite button.
+				if TryGuildInvite(name) then
+					Report("Guild invite requested for " .. name .. ".")
+					return
+				end
+
+				Report("Couldn't send invite via API; opening /ginvite button instead.")
+				AddonTable.ShowGinviteButton(name)
+			end,
+			EditBoxOnEnterPressed = function(self)
+				local parent = self:GetParent()
+				parent.button1:Click()
+			end,
+			EditBoxOnEscapePressed = function(self)
+				self:GetParent():Hide()
+			end,
+		}
+	end
+
+	local ok, popupFrame = pcall(StaticPopup_Show, "MGT_ADD_GUILD_MEMBER")
+	return ok and popupFrame ~= nil
 end
 
 local function NormalizePlayerName(name)
@@ -166,14 +263,24 @@ end
 
 -- Raccourci clavier :
 -- /mgtginvite, ou macro « /click MGTGinviteKeybindButton » puis touche native sur la barre.
-local function InviteTargetViaGinvite()
+local function InviteTargetViaGinvite(msg)
 	if InCombatLockdown() then
 		print("|cFF0088FF[MyGuildTools]|r |cFFFF0000Cannot use /ginvite during combat.|r")
 		return
 	end
 
+	-- /mgtginvite Name
+	if msg and msg:gsub("%s+", "") ~= "" then
+		AddonTable.ShowGinviteButton(msg)
+		return
+	end
+
 	local unit = "target"
 	if not UnitExists(unit) or not UnitIsPlayer(unit) or UnitIsUnit(unit, "player") then
+		-- No target: show the name entry dialog.
+		if not ShowNameInvitePopup() then
+			print("|cFF0088FF[MyGuildTools]|r Usage: |cffffffff/mgtginvite <name>|r (or target a player).")
+		end
 		return
 	end
 

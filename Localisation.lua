@@ -6,6 +6,7 @@ L["Guild invite key hint"] =
 	"Keybind: create a macro with |cffffffff/mgtginvite|r, put it on an action bar, then bind a key to that slot."
 
 L["Tip line"] = "Tip me golds on |cFFFF69B4Kirbybank-Soulseeker|r"
+L["Add Guild Member"] = "Add Guild Member"
 
 -- English: keys are used as labels (metatable fallback).
 -- French:
@@ -27,4 +28,5 @@ if GetLocale() == "frFR" then
 	L["Add a right-click menu to /ginvite"] = "Ajouter un menu contextuel pour /ginvite"
 	L["Guild invite key hint"] = "Raccourci : créez une macro avec |cffffffff/mgtginvite|r, placez-la sur une barre d'action, puis assignez une touche à cet emplacement."
 	L["Tip line"] = "Offrez moi de l'or sur |cFFFF69B4Kirbybank-Soulseeker|r"
+	L["Add Guild Member"] = "Ajouter un membre de guilde"
 end
