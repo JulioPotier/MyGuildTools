@@ -5,6 +5,11 @@ local popup
 local inviteButton
 local dismissFrame
 
+local GUILD_MEMBER_POPUP_WHICH = {
+	ADD_GUILDMEMBER = true,
+	MGT_ADD_GUILD_MEMBER = true,
+}
+
 local MENU_TYPES = {
 	"MENU_UNIT_TARGET",
 	"MENU_UNIT_PLAYER",
@@ -32,32 +37,268 @@ local function GetContextPlayerName(contextData)
 	return nil
 end
 
+local function ReportGuildInvite(msg)
+	print("|cFF0088FF[MyGuildTools]|r " .. msg)
+end
+
+local function ParseGuildInviteName(rawName)
+	if not rawName then
+		return nil
+	end
+	local name = rawName:gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		return nil
+	end
+	-- Classic Era invite expects "Name" (no realm). Strip "-Realm" if user pasted it.
+	name = name:gsub("%s+", " ")
+	name = name:match("^([^-]+)") or name
+	return name
+end
+
+local function GetPopupEditBox(popupFrame)
+	if not popupFrame then
+		return nil
+	end
+	if popupFrame.editBox and popupFrame.editBox.GetText then
+		return popupFrame.editBox
+	end
+	local frameName = popupFrame.GetName and popupFrame:GetName()
+	if frameName then
+		local editBox = _G[frameName .. "EditBox"]
+		if editBox and editBox.GetText then
+			return editBox
+		end
+	end
+	return nil
+end
+
+local function CommitAutoCompleteEditBox(editBox)
+	if not editBox or not editBox.autoCompleteParams then
+		return
+	end
+	if type(AutoCompleteEditBox_OnEnterPressed) == "function" then
+		pcall(AutoCompleteEditBox_OnEnterPressed, editBox)
+	elseif type(AutoCompleteEditBox_OnTabPressed) == "function" then
+		pcall(AutoCompleteEditBox_OnTabPressed, editBox)
+	end
+end
+
+local function GetAutoCompleteInviteName(editBox)
+	if not editBox or not editBox.autoCompleteParams or not GetAutoCompleteResults then
+		return nil
+	end
+	local typed = editBox:GetText() or ""
+	if typed == "" then
+		return nil
+	end
+	local params = editBox.autoCompleteParams
+	local includeFlags, excludeFlags = 0, 0
+	if type(params) == "table" then
+		includeFlags = params.includeFlags or params.include or 0
+		excludeFlags = params.excludeFlags or params.exclude or 0
+	elseif type(params) == "number" then
+		includeFlags = params
+	end
+	local cursor = (editBox.GetCursorPosition and editBox:GetCursorPosition()) or #typed
+	local results
+	if pcall(function()
+		results = GetAutoCompleteResults(typed, 1, cursor, true, includeFlags, excludeFlags)
+	end) and results and results[1] and results[1].name then
+		return results[1].name
+	end
+	if pcall(function()
+		results = GetAutoCompleteResults(typed, 1, cursor, includeFlags, excludeFlags)
+	end) and results and results[1] and results[1].name then
+		return results[1].name
+	end
+	return nil
+end
+
+local function GetGuildInviteEditBoxText(popupFrame)
+	local editBox = GetPopupEditBox(popupFrame)
+	if not editBox then
+		return popupFrame and popupFrame._mgtPendingInviteName or nil
+	end
+	CommitAutoCompleteEditBox(editBox)
+	local text = editBox:GetText()
+	if (not text or text == "") and popupFrame and popupFrame._mgtPendingInviteName then
+		text = popupFrame._mgtPendingInviteName
+	end
+	if (not text or text == "") then
+		text = GetAutoCompleteInviteName(editBox)
+	end
+	return text
+end
+
+local function TrackInviteNameFromEditBox(popupFrame, editBox)
+	if not popupFrame or not editBox then
+		return
+	end
+	local text = editBox:GetText()
+	if text and text ~= "" then
+		popupFrame._mgtPendingInviteName = text
+	end
+	local completed = GetAutoCompleteInviteName(editBox)
+	if completed and completed ~= "" then
+		popupFrame._mgtPendingInviteName = completed
+	end
+end
+
+local function GetActiveGuildMemberPopup()
+	for i = 1, STATICPOPUP_NUMDIALOGS or 4 do
+		local frame = _G["StaticPopup" .. i]
+		if frame and frame:IsShown() and frame.which and GUILD_MEMBER_POPUP_WHICH[frame.which] then
+			return frame
+		end
+	end
+	return nil
+end
+
+local function GetGuildMemberDialogFrame(dialog)
+	if dialog and dialog.editBox and dialog.which and GUILD_MEMBER_POPUP_WHICH[dialog.which] then
+		return dialog
+	end
+	if dialog and dialog.GetParent then
+		local parent = dialog:GetParent()
+		if parent and parent.editBox and parent.which and GUILD_MEMBER_POPUP_WHICH[parent.which] then
+			return parent
+		end
+	end
+	return GetActiveGuildMemberPopup()
+end
+
+local function EnsureInviteEditBoxTracking(editBox)
+	if not editBox or editBox._mgtInviteTextHooked then
+		return
+	end
+	editBox._mgtInviteTextHooked = true
+	editBox:HookScript("OnTextChanged", function(box)
+		TrackInviteNameFromEditBox(box:GetParent(), box)
+	end)
+end
+
+local function GuildMemberPopupOnShow(self)
+	self._mgtPendingInviteName = nil
+	local editBox = GetPopupEditBox(self)
+	if editBox then
+		editBox:SetText("")
+		editBox:SetFocus()
+		EnsureInviteEditBoxTracking(editBox)
+	end
+	if self.button1 and self.button1.Enable then
+		self.button1:Enable()
+	end
+	local acceptBtn = self.button1
+	if acceptBtn and not acceptBtn._mgtGuildInviteHooked then
+		acceptBtn._mgtGuildInviteHooked = true
+		acceptBtn:HookScript("OnClick", function(btn)
+			local dialog = btn:GetParent()
+			if not dialog or not dialog.which or not GUILD_MEMBER_POPUP_WHICH[dialog.which] then
+				return
+			end
+			if popup and popup:IsShown() then
+				return
+			end
+			SubmitGuildInviteFromPopup(dialog)
+		end)
+	end
+end
+
+local function ValidateGuildInviteName(rawName)
+	local name = ParseGuildInviteName(rawName)
+	if not name then
+		ReportGuildInvite("Enter a player name.")
+		return nil
+	end
+	if InCombatLockdown() then
+		ReportGuildInvite("Cannot use /ginvite during combat.")
+		return nil
+	end
+	if not IsInGuild or not IsInGuild() then
+		ReportGuildInvite("You are not in a guild.")
+		return nil
+	end
+	if CanGuildInvite and not CanGuildInvite() then
+		ReportGuildInvite("You don't have permission to invite guild members.")
+		return nil
+	end
+	return name
+end
+
+local function CloseGuildMemberPopup(popupFrame)
+	popupFrame = popupFrame or GetActiveGuildMemberPopup()
+	if not popupFrame then
+		return
+	end
+	if StaticPopup_Hide and popupFrame.which then
+		StaticPopup_Hide(popupFrame.which)
+	else
+		popupFrame:Hide()
+	end
+end
+
+local function SubmitGuildInviteFromPopup(popupFrame)
+	local name = ValidateGuildInviteName(GetGuildInviteEditBoxText(popupFrame))
+	if not name then
+		return false
+	end
+
+	-- Show /ginvite on Accept while the dialog is still open (closing first broke the anchor).
+	AddonTable.ShowGinviteButton(name, popupFrame and popupFrame.button1)
+	-- Return true so StaticPopup stays open until /ginvite is clicked.
+	return true
+end
+
+local function PatchGuildMemberPopup(which)
+	local info = StaticPopupDialogs[which]
+	if not info or info._mgtGuildInvitePatched then
+		return
+	end
+	info._mgtGuildInvitePatched = true
+
+	info._mgtOrigOnShow = info.OnShow
+	info._mgtOrigOnHide = info.OnHide
+	info._mgtOrigOnAccept = info.OnAccept
+	info._mgtOrigEditBoxOnEnterPressed = info.EditBoxOnEnterPressed
+
+	info.OnShow = function(self)
+		if info._mgtOrigOnShow then
+			info._mgtOrigOnShow(self)
+		end
+		GuildMemberPopupOnShow(self)
+	end
+	info.OnHide = function(self)
+		if info._mgtOrigOnHide then
+			info._mgtOrigOnHide(self)
+		end
+	end
+	info.OnAccept = function(self)
+		SubmitGuildInviteFromPopup(self)
+	end
+	info.EditBoxOnEnterPressed = function(self)
+		local parent = self:GetParent()
+		if self.autoCompleteParams and type(AutoCompleteEditBox_OnEnterPressed) == "function" then
+			if AutoCompleteEditBox_OnEnterPressed(self) then
+				TrackInviteNameFromEditBox(parent, self)
+			end
+		end
+		SubmitGuildInviteFromPopup(parent)
+	end
+end
+
+local function EnsureGuildMemberPopupsPatched()
+	if StaticPopupDialogs then
+		PatchGuildMemberPopup("ADD_GUILDMEMBER")
+		PatchGuildMemberPopup("MGT_ADD_GUILD_MEMBER")
+	end
+end
+
 local function ShowNameInvitePopup()
-	-- Provide the "Add Guild Member" dialog even if the client doesn't expose it directly.
 	if not StaticPopupDialogs or not StaticPopup_Show then
 		return false
 	end
 
-	local function Report(msg)
-		print("|cFF0088FF[MyGuildTools]|r " .. msg)
-	end
-
-	local function TryGuildInvite(name)
-		-- Some clients (or private servers) may not expose the same APIs.
-		if C_GuildInfo and C_GuildInfo.Invite then
-			local ok = pcall(C_GuildInfo.Invite, name)
-			if ok then
-				return true
-			end
-		end
-		if GuildInvite then
-			local ok = pcall(GuildInvite, name)
-			if ok then
-				return true
-			end
-		end
-		return false
-	end
+	EnsureGuildMemberPopupsPatched()
 
 	if not StaticPopupDialogs.MGT_ADD_GUILD_MEMBER then
 		StaticPopupDialogs.MGT_ADD_GUILD_MEMBER = {
@@ -65,66 +306,35 @@ local function ShowNameInvitePopup()
 			button1 = ACCEPT,
 			button2 = CANCEL,
 			hasEditBox = 1,
-			maxLetters = 50,
+			maxLetters = 77,
+			autoCompleteParams = AUTOCOMPLETE_LIST and AUTOCOMPLETE_LIST.GUILD_INVITE or nil,
 			timeout = 0,
+			exclusive = 1,
 			whileDead = 1,
 			hideOnEscape = 1,
-			preferredIndex = 3,
-			OnShow = function(self)
-				if self.editBox then
-					self.editBox:SetText("")
-					self.editBox:SetFocus()
-				end
-			end,
+			OnShow = GuildMemberPopupOnShow,
 			OnAccept = function(self)
-				local dialog = self
-				if not dialog.editBox and dialog.GetParent then
-					dialog = dialog:GetParent()
-				end
-				local editBox = dialog and dialog.editBox or nil
-				local name = editBox and editBox:GetText() or nil
-				if not name then
-					return
-				end
-
-				name = name:gsub("^%s+", ""):gsub("%s+$", "")
-				if name == "" then
-					return
-				end
-
-				-- Classic Era invite expects "Name" (no realm). Strip "-Realm" if user pasted it.
-				name = name:gsub("%s+", " ")
-				name = name:match("^([^-]+)") or name
-
-				if not IsInGuild or not IsInGuild() then
-					Report("You are not in a guild.")
-					return
-				end
-				if CanGuildInvite and not CanGuildInvite() then
-					Report("You don't have permission to invite guild members.")
-					return
-				end
-
-				-- Try direct API. If it doesn't work on this client, fall back to the secure /ginvite button.
-				if TryGuildInvite(name) then
-					Report("Guild invite requested for " .. name .. ".")
-					return
-				end
-
-				Report("Couldn't send invite via API; opening /ginvite button instead.")
-				AddonTable.ShowGinviteButton(name)
+				SubmitGuildInviteFromPopup(self)
 			end,
 			EditBoxOnEnterPressed = function(self)
 				local parent = self:GetParent()
-				parent.button1:Click()
+				if self.autoCompleteParams and type(AutoCompleteEditBox_OnEnterPressed) == "function" then
+					if AutoCompleteEditBox_OnEnterPressed(self) then
+						TrackInviteNameFromEditBox(parent, self)
+					end
+				end
+				SubmitGuildInviteFromPopup(parent)
 			end,
 			EditBoxOnEscapePressed = function(self)
 				self:GetParent():Hide()
 			end,
 		}
+		PatchGuildMemberPopup("MGT_ADD_GUILD_MEMBER")
 	end
 
-	local ok, popupFrame = pcall(StaticPopup_Show, "MGT_ADD_GUILD_MEMBER")
+	-- Prefer Blizzard's native dialog when available (same UI, patched handlers).
+	local which = StaticPopupDialogs.ADD_GUILDMEMBER and "ADD_GUILDMEMBER" or "MGT_ADD_GUILD_MEMBER"
+	local ok, popupFrame = pcall(StaticPopup_Show, which)
 	return ok and popupFrame ~= nil
 end
 
@@ -192,8 +402,11 @@ local function HideGinviteButton()
 	end
 end
 
-function AddonTable.ShowGinviteButton(playerName)
+function AddonTable.ShowGinviteButton(playerName, anchorFrame)
 	if not playerName or playerName == "" then
+		return
+	end
+	if not inviteButton or not popup then
 		return
 	end
 	if InCombatLockdown() then
@@ -201,18 +414,31 @@ function AddonTable.ShowGinviteButton(playerName)
 		return
 	end
 
+	inviteButton:SetParent(popup)
+	inviteButton:ClearAllPoints()
+	inviteButton:SetPoint("CENTER")
+
 	local label = "/ginvite " .. playerName
 	inviteButton:SetAttribute("macrotext", "/ginvite " .. playerName)
 	inviteButton:SetText(label)
 	inviteButton:SetWidth(math.max(140, inviteButton:GetFontString():GetStringWidth() + 24))
 	popup:SetWidth(inviteButton:GetWidth() + 16)
+	popup:SetHeight(36)
 
-	local x, y = GetCursorPosition()
-	local scale = UIParent:GetEffectiveScale()
 	popup:ClearAllPoints()
-	popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
+	popup:SetFrameStrata("FULLSCREEN_DIALOG")
+	if anchorFrame and anchorFrame.GetCenter then
+		popup:SetFrameLevel((anchorFrame.GetFrameLevel and anchorFrame:GetFrameLevel() or 0) + 20)
+		popup:SetPoint("CENTER", anchorFrame, "CENTER", 0, 0)
+	else
+		local x, y = GetCursorPosition()
+		local scale = UIParent:GetEffectiveScale()
+		popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
+	end
+
 	dismissFrame:Show()
 	popup:Show()
+	inviteButton:Show()
 end
 
 local function RegisterContextMenus()
@@ -326,6 +552,7 @@ inviteButton:SetAttribute("type", "macro")
 inviteButton:RegisterForClicks("AnyUp")
 inviteButton:SetScript("PostClick", function()
 	HideGinviteButton()
+	CloseGuildMemberPopup(GetActiveGuildMemberPopup())
 end)
 
 dismissFrame = CreateFrame("Button", nil, UIParent)
@@ -337,3 +564,10 @@ dismissFrame:Hide()
 dismissFrame:SetScript("OnClick", HideGinviteButton)
 
 RegisterContextMenus()
+
+local patchFrame = CreateFrame("Frame")
+patchFrame:RegisterEvent("PLAYER_LOGIN")
+patchFrame:SetScript("OnEvent", function()
+	EnsureGuildMemberPopupsPatched()
+end)
+EnsureGuildMemberPopupsPatched()
