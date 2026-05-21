@@ -23,7 +23,8 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["GuildRank"] = "DISABLED",
 			["FontSize"] = "12",
 			["SimpleRanks"] = "NO",
-			["GuildInviteMenu"] = "DISABLED"
+			["GuildInviteMenu"] = "DISABLED",
+			["GuildNotes"] = "DISABLED",
 		}
 	end
 	
@@ -34,6 +35,7 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 	if MGTConfig.FontSize == nil then MGTConfig.FontSize = '12' end
 	if MGTConfig.SimpleRanks == nil then MGTConfig.SimpleRanks = 'NO' end
 	if MGTConfig.GuildInviteMenu == nil then MGTConfig.GuildInviteMenu = 'DISABLED' end
+	if MGTConfig.GuildNotes == nil then MGTConfig.GuildNotes = 'DISABLED' end
 elseif event == "PLAYER_TARGET_CHANGED" then
 	if C_AddOns.IsAddOnLoaded("ShadowedUnitFrames") == true then
 		SUFUnittarget:SetScript("OnEnter", function(self)
@@ -102,18 +104,149 @@ end)
 
 -- Tooltip Creation
 
+local MGT_COLOR_GUILD_OURS = "FF66FF66"
+local MGT_COLOR_GUILD_OTHER = "FF66CCFF"
+local MGT_COLOR_NOTE = "FFAAAAAA"
+
+local rosterFrame = CreateFrame("Frame")
+rosterFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+rosterFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
+rosterFrame:SetScript("OnEvent", function()
+	if IsInGuild and IsInGuild() and GuildRoster then
+		GuildRoster()
+	end
+end)
+
+local function MGTGetOurGuildName()
+	if not IsInGuild or not IsInGuild() then
+		return nil
+	end
+	return GetGuildInfo("player")
+end
+
+local function MGTIsOurGuild(guildName)
+	local ourGuild = MGTGetOurGuildName()
+	return guildName ~= nil and ourGuild ~= nil and guildName == ourGuild
+end
+
+local function MGTGetGuildColorPrefix(guildName)
+	if MGTConfig.Colour ~= "ENABLED" or not guildName then
+		return ""
+	end
+	if MGTIsOurGuild(guildName) then
+		return "|c" .. MGT_COLOR_GUILD_OURS
+	end
+	return "|c" .. MGT_COLOR_GUILD_OTHER
+end
+
+local function MGTCanViewOfficerNote()
+	if C_GuildInfo and C_GuildInfo.CanViewOfficerNote then
+		return C_GuildInfo.CanViewOfficerNote()
+	end
+	return IsInGuild and IsInGuild()
+end
+
+local function MGTNamesMatch(nameA, nameB)
+	if not nameA or not nameB then
+		return false
+	end
+	if Ambiguate then
+		return Ambiguate(nameA, "none") == Ambiguate(nameB, "none")
+	end
+	return nameA == nameB
+end
+
+local function MGTRequestGuildRoster()
+	if IsInGuild and IsInGuild() and GuildRoster then
+		GuildRoster()
+	end
+end
+
+local function MGTGetGuildRosterNotes(unit)
+	if not IsInGuild or not IsInGuild() or not GetNumGuildMembers or not GetGuildRosterInfo then
+		return nil, nil
+	end
+
+	local unitName = GetUnitName(unit, true)
+	if not unitName then
+		return nil, nil
+	end
+
+	MGTRequestGuildRoster()
+
+	local numMembers = GetNumGuildMembers()
+	if not numMembers or numMembers == 0 then
+		return nil, nil
+	end
+
+	for i = 1, numMembers do
+		local rosterName, _, _, _, _, _, publicNote, officerNote = GetGuildRosterInfo(i)
+		if MGTNamesMatch(unitName, rosterName) then
+			return publicNote, officerNote
+		end
+	end
+
+	return nil, nil
+end
+
+local function MGTBuildGuildLine(guildName, guildRankName)
+	if not guildName then
+		return nil
+	end
+
+	local colorPrefix = MGTGetGuildColorPrefix(guildName)
+	local colorSuffix = (colorPrefix ~= "") and "|r" or ""
+
+	if MGTConfig.GuildRank == "ENABLED" then
+		if MGTConfig.SimpleRanks == "YES" then
+			return colorPrefix .. guildName .. " (" .. (guildRankName or "") .. ")" .. colorSuffix
+		end
+		return colorPrefix .. (guildRankName or "") .. " of " .. guildName .. colorSuffix
+	end
+
+	return colorPrefix .. guildName .. colorSuffix
+end
+
+local function MGTAppendGuildNotes(person)
+	if MGTConfig.GuildNotes ~= "ENABLED" then
+		return
+	end
+
+	local guildName = GetGuildInfo(person)
+	if not MGTIsOurGuild(guildName) then
+		return
+	end
+
+	local publicNote, officerNote = MGTGetGuildRosterNotes(person)
+	local added = false
+
+	if publicNote and publicNote ~= "" then
+		GameTooltip:AddLine("|c" .. MGT_COLOR_NOTE .. L["Note:"] .. " " .. publicNote .. "|r", 0.67, 0.67, 0.67, true)
+		added = true
+	end
+
+	if MGTCanViewOfficerNote() and officerNote and officerNote ~= "" then
+		GameTooltip:AddLine("|c" .. MGT_COLOR_NOTE .. L["Officer:"] .. " " .. officerNote .. "|r", 0.67, 0.67, 0.67, true)
+		added = true
+	end
+
+	if added then
+		GameTooltip:Show()
+	end
+end
+
 function CreateGTTooltip(person)
 
 GameTooltipHeaderText:SetFont("Fonts\\FRIZQT__.ttf", tonumber(MGTConfig.FontSize), "")
-	local guildName, guildRankName, guildRankIndex = GetGuildInfo(person);
+	local guildName, guildRankName = GetGuildInfo(person)
 	local playerlevel = UnitLevel(person)
 	local race = UnitRace(person)
-	local localizedClass, englishClass, classIndex = UnitClass(person)
+	local localizedClass, englishClass = UnitClass(person)
 	local myRealm = GetRealmName("player")
-			
+
 	local theirname, theirRealm = UnitName(person)
 	local name
-	
+
 	if theirRealm ~= nil then
 		if MGTConfig.Realms == "DISABLED" then
 			if MGTConfig.Titles == "ENABLED" then
@@ -135,52 +268,48 @@ GameTooltipHeaderText:SetFont("Fonts\\FRIZQT__.ttf", tonumber(MGTConfig.FontSize
 			name = UnitName(person)
 		end
 	end
-	
-	if playerlevel == -1 then playerlevel = "??" end
-	
-	if MGTConfig.Colour == "ENABLED" then		
-		if guildName == nil then
-			GameTooltipTextLeft1:SetText("|c" .. RAID_CLASS_COLORS[englishClass].colorStr .. name .. "|r")
-			GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " |c" .. RAID_CLASS_COLORS[englishClass].colorStr .. localizedClass .. "|r", 1, 1, 1, true)
-		elseif guildName ~= nil then
+
+	if playerlevel == -1 then
+		playerlevel = "??"
+	end
+
+	local classColor = ""
+	local classColorEnd = ""
+	if MGTConfig.Colour == "ENABLED" and englishClass and RAID_CLASS_COLORS[englishClass] then
+		classColor = "|c" .. RAID_CLASS_COLORS[englishClass].colorStr
+		classColorEnd = "|r"
+	end
+
+	local levelLine = LEVEL .. " " .. playerlevel .. " " .. race .. " " .. classColor .. localizedClass .. classColorEnd
+
+	if guildName == nil then
+		GameTooltipTextLeft1:SetText(classColor .. name .. classColorEnd)
+		GameTooltipTextLeft2:SetText(levelLine, 1, 1, 1, true)
+	else
+		local guildLine = MGTBuildGuildLine(guildName, guildRankName)
+		if MGTConfig.Colour == "ENABLED" then
+			GameTooltipTextLeft1:SetText(classColor .. name .. classColorEnd .. "\n" .. guildLine)
+		else
 			if MGTConfig.GuildRank == "ENABLED" then
 				if MGTConfig.SimpleRanks == "YES" then
-					GameTooltipTextLeft1:SetText("|c" .. RAID_CLASS_COLORS[englishClass].colorStr .. name .. "|r\n|cFF40FB40" .. guildName .. " (" .. guildRankName .. ")|r")
-					GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " |c" .. RAID_CLASS_COLORS[englishClass].colorStr .. localizedClass .. "|r", 1, 1, 1, true)
-				elseif MGTConfig.SimpleRanks == "NO" then
-					GameTooltipTextLeft1:SetText("|c" .. RAID_CLASS_COLORS[englishClass].colorStr .. name .. "|r\n|cFF40FB40" .. guildRankName .. " of " .. guildName .. "|r")
-					GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " |c" .. RAID_CLASS_COLORS[englishClass].colorStr .. localizedClass .. "|r", 1, 1, 1, true)
+					guildLine = "<" .. guildName .. "> (" .. (guildRankName or "") .. ")"
+				else
+					guildLine = (guildRankName or "") .. " of <" .. guildName .. ">"
 				end
-			elseif MGTConfig.GuildRank == "DISABLED" then
-				GameTooltipTextLeft1:SetText("|c" .. RAID_CLASS_COLORS[englishClass].colorStr .. name .. "|r\n|cFF40FB40" .. guildName .. "|r")
-				GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " |c" .. RAID_CLASS_COLORS[englishClass].colorStr .. localizedClass .. "|r", 1, 1, 1, true)
+			else
+				guildLine = "<" .. guildName .. ">"
 			end
+			GameTooltipTextLeft1:SetText(name .. "\n" .. guildLine)
 		end
-	elseif MGTConfig.Colour == "DISABLED" then
-		if guildName == nil then
-			GameTooltipTextLeft1:SetText(name)
-			GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " " .. localizedClass, 1, 1, 1, true)
-		elseif guildName ~= nil then
-			if MGTConfig.GuildRank == "ENABLED" then
-				if MGTConfig.SimpleRanks == "YES" then
-					GameTooltipTextLeft1:SetText(name .. "\n<" .. guildName .. "> (" .. guildRankName .. ")")
-					GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " " .. localizedClass, 1, 1, 1, true)
-				elseif MGTConfig.SimpleRanks == "NO" then
-					GameTooltipTextLeft1:SetText(name .. "\n" .. guildRankName .. " of <" .. guildName .. ">")
-					GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " " .. localizedClass, 1, 1, 1, true)
-				end
-			elseif MGTConfig.GuildRank == "DISABLED" then
-				GameTooltipTextLeft1:SetText(name .. "\n<" .. guildName .. ">")
-				GameTooltipTextLeft2:SetText(LEVEL .. " " .. playerlevel .. " " .. race .. " " .. localizedClass, 1, 1, 1, true)
-			end
-		end
-	end		
-		
+		GameTooltipTextLeft2:SetText(levelLine, 1, 1, 1, true)
+	end
+
 	if MGTConfig.HealthBar == "ENABLED" then
 		GameTooltipStatusBar:Show()
 	elseif MGTConfig.HealthBar == "DISABLED" then
 		GameTooltipStatusBar:Hide()
 	end
-	
+
 	GameTooltipTextLeft3:SetText("")
+	MGTAppendGuildNotes(person)
 end

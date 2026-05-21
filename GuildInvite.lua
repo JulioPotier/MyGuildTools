@@ -19,8 +19,18 @@ local MENU_TYPES = {
 	"MENU_UNIT_COMMUNITIES_GUILD_MEMBER",
 }
 
+function AddonTable.PlayerCanGuildInvite()
+	if not IsInGuild or not IsInGuild() then
+		return false
+	end
+	if CanGuildInvite and not CanGuildInvite() then
+		return false
+	end
+	return true
+end
+
 local function IsGuildInviteMenuEnabled()
-	return MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED"
+	return MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" and AddonTable.PlayerCanGuildInvite()
 end
 
 local function GetContextPlayerName(contextData)
@@ -214,12 +224,12 @@ local function ValidateGuildInviteName(rawName)
 		ReportGuildInvite("Cannot use /ginvite during combat.")
 		return nil
 	end
-	if not IsInGuild or not IsInGuild() then
-		ReportGuildInvite("You are not in a guild.")
-		return nil
-	end
-	if CanGuildInvite and not CanGuildInvite() then
-		ReportGuildInvite("You don't have permission to invite guild members.")
+	if not AddonTable.PlayerCanGuildInvite() then
+		if not IsInGuild or not IsInGuild() then
+			ReportGuildInvite("You are not in a guild.")
+		else
+			ReportGuildInvite("You don't have permission to invite guild members.")
+		end
 		return nil
 	end
 	return name
@@ -294,6 +304,14 @@ local function EnsureGuildMemberPopupsPatched()
 end
 
 local function ShowNameInvitePopup()
+	if not AddonTable.PlayerCanGuildInvite() then
+		if not IsInGuild or not IsInGuild() then
+			ReportGuildInvite("You are not in a guild.")
+		else
+			ReportGuildInvite("You don't have permission to invite guild members.")
+		end
+		return false
+	end
 	if not StaticPopupDialogs or not StaticPopup_Show then
 		return false
 	end
@@ -406,6 +424,14 @@ function AddonTable.ShowGinviteButton(playerName, anchorFrame)
 	if not playerName or playerName == "" then
 		return
 	end
+	if not AddonTable.PlayerCanGuildInvite() then
+		if not IsInGuild or not IsInGuild() then
+			ReportGuildInvite("You are not in a guild.")
+		else
+			ReportGuildInvite("You don't have permission to invite guild members.")
+		end
+		return
+	end
 	if not inviteButton or not popup then
 		return
 	end
@@ -490,6 +516,14 @@ end
 -- Raccourci clavier :
 -- /mgtginvite, ou macro « /click MGTGinviteKeybindButton » puis touche native sur la barre.
 local function InviteTargetViaGinvite(msg)
+	if not AddonTable.PlayerCanGuildInvite() then
+		if not IsInGuild or not IsInGuild() then
+			ReportGuildInvite("You are not in a guild.")
+		else
+			ReportGuildInvite("You don't have permission to invite guild members.")
+		end
+		return
+	end
 	if InCombatLockdown() then
 		print("|cFF0088FF[MyGuildTools]|r |cFFFF0000Cannot use /ginvite during combat.|r")
 		return

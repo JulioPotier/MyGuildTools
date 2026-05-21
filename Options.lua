@@ -37,11 +37,32 @@ lblTitle:SetFont("Fonts\\FRIZQT__.TTF", 12)
 lblTitle:SetPoint("TOPLEFT", GTIOFrame, "TOPLEFT", 12, -12)
 lblTitle:SetText(L["MyGuildTools"] .. " v" .. C_AddOns.GetAddOnMetadata(AddonName, "Version"))
 
+local lblTip = GTIOFrame:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblTip:SetPoint("BOTTOMLEFT", GTIOFrame, "BOTTOMLEFT", 12, 12)
+lblTip:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -12, 12)
+lblTip:SetJustifyH("CENTER")
+lblTip:SetText(L["Tip line"])
+
+local optionsScroll = CreateFrame("ScrollFrame", "MGTOptionsScroll", GTIOFrame, "UIPanelScrollFrameTemplate")
+optionsScroll:SetPoint("TOPLEFT", lblTitle, "BOTTOMLEFT", -4, -12)
+optionsScroll:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -28, 36)
+
+local optionsScrollChild = CreateFrame("Frame", nil, optionsScroll)
+optionsScrollChild:SetWidth(420)
+optionsScroll:SetScrollChild(optionsScrollChild)
+
+if optionsScroll.SetClipsChildren then
+	optionsScroll:SetClipsChildren(true)
+end
+if optionsScrollChild.SetClipsChildren then
+	optionsScrollChild:SetClipsChildren(true)
+end
+
 -- Tooltip options section
 
-local tooltipBox = CreateFrame("Frame", nil, GTIOFrame, "BackdropTemplate")
-tooltipBox:SetPoint("TOPLEFT", lblTitle, "BOTTOMLEFT", -8, -16)
-tooltipBox:SetSize(420, 272)
+local tooltipBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+tooltipBox:SetPoint("TOPLEFT", optionsScrollChild, "TOPLEFT", 0, 0)
+tooltipBox:SetSize(420, 296)
 tooltipBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -218,10 +239,36 @@ local chkShowGuildRankSecondText = tooltipBox:CreateFontString(nil, nil, "GameFo
 chkShowGuildRankSecondText:SetPoint("LEFT", chkShowGuildRankSecond, "RIGHT", 0, 1)
 chkShowGuildRankSecondText:SetText(L["Show rank after guild name"])
 
+-- Guild notes (our guild roster only)
+
+local chkIOGuildNotes = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
+chkIOGuildNotes:SetPoint("TOPLEFT", chkShowGuildRankSecond, "BOTTOMLEFT", 0, -8)
+
+chkIOGuildNotes:SetScript("OnUpdate", function(frame)
+	if MGTConfig.GuildNotes == "ENABLED" then
+		chkIOGuildNotes:SetChecked(true)
+	elseif MGTConfig.GuildNotes == "DISABLED" then
+		chkIOGuildNotes:SetChecked(false)
+	end
+end)
+
+chkIOGuildNotes:SetScript("OnClick", function(frame)
+	local tick = frame:GetChecked()
+	if tick == false then
+		MGTConfig.GuildNotes = "DISABLED"
+	elseif tick == true then
+		MGTConfig.GuildNotes = "ENABLED"
+	end
+end)
+
+local chkIOGuildNotesText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
+chkIOGuildNotesText:SetPoint("LEFT", chkIOGuildNotes, "RIGHT", 0, 1)
+chkIOGuildNotesText:SetText(L["Add guild notes when available"])
+
 -- Font Size
 
 local lblIOFontSizeText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
-lblIOFontSizeText:SetPoint("TOPLEFT", chkShowGuildRankSecond, "BOTTOMLEFT", 0, -8)
+lblIOFontSizeText:SetPoint("TOPLEFT", chkIOGuildNotes, "BOTTOMLEFT", 0, -8)
 lblIOFontSizeText:SetText(L["Tooltip font size:"])
 
 --local ddFontSize = CreateFrame("Frame", "GTFontSize", GTIOFrame, "UIDropDownMenuTemplate")
@@ -265,7 +312,7 @@ end
 
 -- Guild Invite options section
 
-local guildInviteBox = CreateFrame("Frame", nil, GTIOFrame, "BackdropTemplate")
+local guildInviteBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
 guildInviteBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
 guildInviteBox:SetSize(420, 112)
 guildInviteBox:SetBackdrop({
@@ -282,18 +329,68 @@ local lblGuildInviteSection = guildInviteBox:CreateFontString(nil, nil, "GameFon
 lblGuildInviteSection:SetPoint("TOPLEFT", guildInviteBox, "TOPLEFT", 12, -8)
 lblGuildInviteSection:SetText(L["Guild Invite"])
 
-local chkIOGuildInviteMenu = CreateFrame("CheckButton", nil, guildInviteBox, "OptionsBaseCheckButtonTemplate")
-chkIOGuildInviteMenu:SetPoint("TOPLEFT", lblGuildInviteSection, "BOTTOMLEFT", 0, -8)
+local guildInviteOpts = {}
 
-chkIOGuildInviteMenu:SetScript("OnUpdate", function(frame)
+guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, guildInviteBox, "OptionsBaseCheckButtonTemplate")
+guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblGuildInviteSection, "BOTTOMLEFT", 0, -8)
+
+guildInviteOpts.label = guildInviteBox:CreateFontString(nil, nil, "GameFontHighlight")
+guildInviteOpts.label:SetPoint("LEFT", guildInviteOpts.checkbox, "RIGHT", 0, 1)
+guildInviteOpts.label:SetText(L["Add a right-click menu to /ginvite"])
+
+guildInviteOpts.hint = guildInviteBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 0, -8)
+guildInviteOpts.hint:SetPoint("LEFT", guildInviteBox, "LEFT", 28, 0)
+guildInviteOpts.hint:SetPoint("RIGHT", guildInviteBox, "RIGHT", -12, 0)
+guildInviteOpts.hint:SetJustifyH("LEFT")
+guildInviteOpts.hint:SetJustifyV("TOP")
+guildInviteOpts.hint:SetSpacing(4)
+guildInviteOpts.hint:SetText(L["Guild invite key hint"])
+
+local function RefreshGuildInviteOptionsUI()
+	local checkbox = guildInviteOpts.checkbox
+	local label = guildInviteOpts.label
+	local hint = guildInviteOpts.hint
+	if not checkbox or not label or not hint then
+		return
+	end
+
+	local canUse = AddonTable.PlayerCanGuildInvite and AddonTable.PlayerCanGuildInvite()
+	if canUse then
+		checkbox:Enable()
+		label:SetTextColor(1, 0.82, 0)
+		hint:SetTextColor(0.5, 0.5, 0.5)
+	else
+		checkbox:Disable()
+		checkbox:SetChecked(false)
+		MGTConfig.GuildInviteMenu = "DISABLED"
+		label:SetTextColor(0.5, 0.5, 0.5)
+		hint:SetTextColor(0.35, 0.35, 0.35)
+	end
+end
+
+guildInviteOpts.checkbox:SetScript("OnUpdate", function(frame)
+	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
+		return
+	end
 	if MGTConfig.GuildInviteMenu == "ENABLED" then
-		chkIOGuildInviteMenu:SetChecked(true)
+		frame:SetChecked(true)
 	elseif MGTConfig.GuildInviteMenu == "DISABLED" then
-		chkIOGuildInviteMenu:SetChecked(false)
+		frame:SetChecked(false)
 	end
 end)
 
-chkIOGuildInviteMenu:SetScript("OnClick", function(frame)
+guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
+	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
+		frame:SetChecked(false)
+		MGTConfig.GuildInviteMenu = "DISABLED"
+		if not IsInGuild or not IsInGuild() then
+			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You are not in a guild."])
+		else
+			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You don't have permission to invite guild members."])
+		end
+		return
+	end
 	local tick = frame:GetChecked()
 	if tick == false then
 		MGTConfig.GuildInviteMenu = "DISABLED"
@@ -302,24 +399,176 @@ chkIOGuildInviteMenu:SetScript("OnClick", function(frame)
 	end
 end)
 
-local chkIOGuildInviteMenuText = guildInviteBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkIOGuildInviteMenuText:SetPoint("LEFT", chkIOGuildInviteMenu, "RIGHT", 0, 1)
-chkIOGuildInviteMenuText:SetText(L["Add a right-click menu to /ginvite"])
+local guildInviteOptionsWatcher = CreateFrame("Frame")
+guildInviteOptionsWatcher:RegisterEvent("PLAYER_GUILD_UPDATE")
+guildInviteOptionsWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+guildInviteOptionsWatcher:SetScript("OnEvent", RefreshGuildInviteOptionsUI)
+RefreshGuildInviteOptionsUI()
 
-local guildInviteKeyHint = guildInviteBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-guildInviteKeyHint:SetPoint("TOPLEFT", chkIOGuildInviteMenu, "BOTTOMLEFT", 0, -8)
-guildInviteKeyHint:SetPoint("LEFT", guildInviteBox, "LEFT", 28, 0)
-guildInviteKeyHint:SetPoint("RIGHT", guildInviteBox, "RIGHT", -12, 0)
-guildInviteKeyHint:SetJustifyH("LEFT")
-guildInviteKeyHint:SetJustifyV("TOP")
-guildInviteKeyHint:SetSpacing(4)
-guildInviteKeyHint:SetText(L["Guild invite key hint"])
+-- Tabard Stalker
 
-local lblTip = GTIOFrame:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblTip:SetPoint("BOTTOMLEFT", GTIOFrame, "BOTTOMLEFT", 12, 12)
-lblTip:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -12, 12)
-lblTip:SetJustifyH("CENTER")
-lblTip:SetText(L["Tip line"])
+local tabardStalkerBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+tabardStalkerBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
+tabardStalkerBox:SetSize(420, 196)
+if tabardStalkerBox.SetClipsChildren then
+	tabardStalkerBox:SetClipsChildren(true)
+end
+tabardStalkerBox:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true,
+	tileSize = 32,
+	edgeSize = 16,
+	insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+tabardStalkerBox:SetBackdropColor(0, 0, 0, 0.5)
+
+local lblTabardStalkerSection = tabardStalkerBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblTabardStalkerSection:SetPoint("TOPLEFT", tabardStalkerBox, "TOPLEFT", 12, -8)
+lblTabardStalkerSection:SetText(L["Tabard Stalker"])
+
+local lblTabardStalkerHint = tabardStalkerBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblTabardStalkerHint:SetPoint("TOPLEFT", lblTabardStalkerSection, "BOTTOMLEFT", 0, -4)
+lblTabardStalkerHint:SetPoint("RIGHT", tabardStalkerBox, "RIGHT", -12, 0)
+lblTabardStalkerHint:SetJustifyH("LEFT")
+lblTabardStalkerHint:SetText(L["Tabard scan (party/raid)"])
+
+local btnScanTabards = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
+btnScanTabards:SetSize(160, 22)
+btnScanTabards:SetPoint("TOPLEFT", lblTabardStalkerHint, "BOTTOMLEFT", 0, -8)
+btnScanTabards:SetText(L["Scan group tabards"])
+
+local btnResetTabardCache = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
+btnResetTabardCache:SetSize(140, 22)
+btnResetTabardCache:SetPoint("LEFT", btnScanTabards, "RIGHT", 8, 0)
+btnResetTabardCache:SetText(L["Reset tabard data"])
+
+local btnAnnounceTabards = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
+btnAnnounceTabards:SetSize(308, 22)
+btnAnnounceTabards:SetPoint("TOPLEFT", btnScanTabards, "BOTTOMLEFT", 0, -4)
+btnAnnounceTabards:SetText(L["Announce missing tabards in /say"])
+btnAnnounceTabards:Disable()
+
+local lblTabardScanStatus = tabardStalkerBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblTabardScanStatus:SetPoint("TOPLEFT", btnAnnounceTabards, "BOTTOMLEFT", 0, -4)
+lblTabardScanStatus:SetPoint("RIGHT", tabardStalkerBox, "RIGHT", -12, 0)
+lblTabardScanStatus:SetJustifyH("LEFT")
+lblTabardScanStatus:SetHeight(28)
+lblTabardScanStatus:SetText("")
+
+local tabardScanSpinner = tabardStalkerBox:CreateTexture(nil, "ARTWORK")
+tabardScanSpinner:SetSize(16, 16)
+tabardScanSpinner:SetPoint("RIGHT", lblTabardScanStatus, "LEFT", -4, 0)
+tabardScanSpinner:SetTexture("Interface\\ChatFrame\\UI-ChatLoadingIcon")
+tabardScanSpinner:SetTexCoord(0, 0.25, 0, 1)
+tabardScanSpinner:Hide()
+
+local tabardSpinnerAnim = tabardScanSpinner:CreateAnimationGroup()
+tabardSpinnerAnim:SetLooping("REPEAT")
+local tabardSpinnerRotate = tabardSpinnerAnim:CreateAnimation("Rotation")
+tabardSpinnerRotate:SetDegrees(360)
+tabardSpinnerRotate:SetDuration(1)
+
+local function UpdateTabardStalkerBoxHeight()
+	local statusH = math.max(lblTabardScanStatus:GetStringHeight() or 0, lblTabardScanStatus:GetHeight() or 28, 28)
+	local hintH = math.max(lblTabardStalkerHint:GetStringHeight() or 0, 14)
+	tabardStalkerBox:SetHeight(8 + 16 + 4 + hintH + 8 + 22 + 4 + 22 + 4 + statusH + 14)
+end
+
+local function UpdateOptionsScrollHeight()
+	UpdateTabardStalkerBoxHeight()
+	local height = tooltipBox:GetHeight() + guildInviteBox:GetHeight() + tabardStalkerBox:GetHeight() + 48
+	optionsScrollChild:SetHeight(height)
+end
+
+local function RefreshTabardScanUI()
+	local inGroup = AddonTable.IsInGroupOrRaid and AddonTable.IsInGroupOrRaid()
+	local running = AddonTable.IsTabardScanRunning and AddonTable.IsTabardScanRunning()
+
+	if running then
+		btnScanTabards:Disable()
+		btnResetTabardCache:Disable()
+		btnAnnounceTabards:Disable()
+		tabardScanSpinner:Show()
+		tabardSpinnerAnim:Play()
+	else
+		tabardScanSpinner:Hide()
+		tabardSpinnerAnim:Stop()
+		btnResetTabardCache:Enable()
+		if AddonTable.HasPendingTabardAnnounce and AddonTable.HasPendingTabardAnnounce() then
+			btnAnnounceTabards:Enable()
+		else
+			btnAnnounceTabards:Disable()
+		end
+		if inGroup then
+			btnScanTabards:Enable()
+		else
+			btnScanTabards:Disable()
+		end
+		if lblTabardScanStatus:GetText() == "" then
+			if inGroup then
+				lblTabardScanStatus:SetText(L["Ready to scan your party or raid."])
+			else
+				lblTabardScanStatus:SetText(L["Join a party or raid to scan tabards."])
+			end
+		end
+	end
+	UpdateOptionsScrollHeight()
+end
+
+AddonTable.OnTabardScanStatus = function(text)
+	if text and text ~= "" then
+		lblTabardScanStatus:SetText(text)
+	else
+		lblTabardScanStatus:SetText("")
+	end
+	RefreshTabardScanUI()
+end
+
+AddonTable.OnTabardScanStarted = function()
+	RefreshTabardScanUI()
+end
+
+AddonTable.OnTabardScanFinished = function(missingCount)
+	missingCount = missingCount or 0
+	if missingCount > 0 then
+		lblTabardScanStatus:SetText(string.format(L["Scan finished. %d without tabard."], missingCount))
+	else
+		lblTabardScanStatus:SetText(L["Scan finished."])
+	end
+	RefreshTabardScanUI()
+end
+
+btnAnnounceTabards:SetScript("OnClick", function()
+	if AddonTable.AnnounceMissingTabards then
+		AddonTable.AnnounceMissingTabards()
+	end
+end)
+
+btnScanTabards:SetScript("OnClick", function()
+	if AddonTable.StartTabardScan then
+		AddonTable.StartTabardScan()
+	end
+end)
+
+btnResetTabardCache:SetScript("OnClick", function()
+	if AddonTable.ResetTabardCache then
+		AddonTable.ResetTabardCache()
+	end
+	lblTabardScanStatus:SetText(L["Tabard cache cleared."])
+	RefreshTabardScanUI()
+end)
+
+local tabardScanWatcher = CreateFrame("Frame")
+tabardScanWatcher:RegisterEvent("GROUP_ROSTER_UPDATE")
+tabardScanWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+tabardScanWatcher:RegisterEvent("RAID_ROSTER_UPDATE")
+tabardScanWatcher:SetScript("OnEvent", RefreshTabardScanUI)
+RefreshTabardScanUI()
+
+optionsScrollChild:SetScript("OnShow", UpdateOptionsScrollHeight)
+GTIOFrame:SetScript("OnShow", UpdateOptionsScrollHeight)
+UpdateOptionsScrollHeight()
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)
@@ -337,7 +586,7 @@ if msg == "" or msg == nil then
 		print("Category not found")
 	end
 elseif msg == "help" then
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r The following arguments are valid:\ncolour/color - Toggle colouring of player name and class\nhp/health/bar - Toggle the HP bar under the tooltip\ntitles - Toggle showing of player titles\nrealms - Toggle showing of player realms\ngrank/guildrank - Toggle showing of player guild ranks")
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r The following arguments are valid:\ncolour/color - Toggle colouring of player name and class\nhp/health/bar - Toggle the HP bar under the tooltip\ntitles - Toggle showing of player titles\nrealms - Toggle showing of player realms\ngrank/guildrank - Toggle showing of player guild ranks\ngnotes/guildnotes - Toggle guild notes on tooltips")
 elseif msg == "colour" or msg == "color" then
 	if MGTConfig.Colour == "ENABLED" then
 		MGTConfig.Colour = 'DISABLED'
@@ -367,6 +616,12 @@ elseif msg == "grank" or msg == "guildrank" then
 		MGTConfig.GuildRank = 'DISABLED'
 	elseif MGTConfig.GuildRank == "DISABLED" then
 		MGTConfig.GuildRank = 'ENABLED'
+	end
+elseif msg == "gnotes" or msg == "guildnotes" then
+	if MGTConfig.GuildNotes == "ENABLED" then
+		MGTConfig.GuildNotes = "DISABLED"
+	elseif MGTConfig.GuildNotes == "DISABLED" then
+		MGTConfig.GuildNotes = "ENABLED"
 	end
 end
 

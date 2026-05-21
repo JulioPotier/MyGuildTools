@@ -1,11 +1,12 @@
-﻿##Interface: 11508
+##Interface: 11508
 ##Author: Kirby2112
-##Version: 0.1.0
-##SavedVariables: MGTConfig
+##Version: 0.2.0
+##SavedVariables: MGTConfig, MGTTabardHasCache
 ##Title: |cFF0088FFMyGuildTools|r
 ##Title-frFR: |cFF0088FFOutils de guilde|r
 
 Localisation.lua
 MyGuildTools.lua
 GuildInvite.lua
+TabardScan.lua
 Options.lua
