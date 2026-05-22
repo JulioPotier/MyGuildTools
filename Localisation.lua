@@ -32,6 +32,13 @@ L["Click Announce in /say to speak in game."] = "Click Announce in /say to speak
 L["Announce missing tabards in /say"] = "Announce missing tabards in /say"
 L["Cannot announce in combat."] = "Cannot announce in combat."
 L["Announced missing tabards in /say."] = "Announced missing tabards in /say."
+L["Only for guildies"] = "Only for guildies"
+L["Minimum level:"] = "Minimum level:"
+L["Auto scan when grouping"] = "Auto scan when grouping"
+L["%s is too far away or cannot be inspected."] = "%s is too far away or cannot be inspected."
+L["Will retry inspection when in range (auto scan)."] = "Will retry inspection when in range (auto scan)."
+L["Scan finished. %d not inspectable."] = "Scan finished. %d not inspectable."
+L["Scan finished. %d without tabard, %d not inspectable."] = "Scan finished. %d without tabard, %d not inspectable."
 
 -- English: keys are used as labels (metatable fallback).
 -- French:
@@ -79,4 +86,11 @@ if GetLocale() == "frFR" then
 	L["Announce missing tabards in /say"] = "Annoncer les tabards manquants en /say"
 	L["Cannot announce in combat."] = "Impossible d'annoncer en combat."
 	L["Announced missing tabards in /say."] = "Tabards manquants annoncés en /say."
+	L["Only for guildies"] = "Guilde uniquement"
+	L["Minimum level:"] = "Niveau minimum :"
+	L["Auto scan when grouping"] = "Scan auto à l'arrivée en groupe"
+	L["%s is too far away or cannot be inspected."] = "%s est trop loin ou ne peut pas être inspecté."
+	L["Will retry inspection when in range (auto scan)."] = "Nouvelle tentative d'inspection à portée (scan auto)."
+	L["Scan finished. %d not inspectable."] = "Scan terminé. %d non inspectable(s)."
+	L["Scan finished. %d without tabard, %d not inspectable."] = "Scan terminé. %d sans tabard, %d non inspectable(s)."
 end

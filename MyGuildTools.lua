@@ -25,6 +25,9 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["SimpleRanks"] = "NO",
 			["GuildInviteMenu"] = "DISABLED",
 			["GuildNotes"] = "DISABLED",
+			["TabardStalkerGuildOnly"] = "ENABLED",
+			["TabardStalkerMinLevel"] = "40",
+			["TabardStalkerAutoScan"] = "DISABLED",
 		}
 	end
 	
@@ -36,6 +39,9 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 	if MGTConfig.SimpleRanks == nil then MGTConfig.SimpleRanks = 'NO' end
 	if MGTConfig.GuildInviteMenu == nil then MGTConfig.GuildInviteMenu = 'DISABLED' end
 	if MGTConfig.GuildNotes == nil then MGTConfig.GuildNotes = 'DISABLED' end
+	if MGTConfig.TabardStalkerGuildOnly == nil then MGTConfig.TabardStalkerGuildOnly = 'ENABLED' end
+	if MGTConfig.TabardStalkerMinLevel == nil then MGTConfig.TabardStalkerMinLevel = '40' end
+	if MGTConfig.TabardStalkerAutoScan == nil then MGTConfig.TabardStalkerAutoScan = 'DISABLED' end
 elseif event == "PLAYER_TARGET_CHANGED" then
 	if C_AddOns.IsAddOnLoaded("ShadowedUnitFrames") == true then
 		SUFUnittarget:SetScript("OnEnter", function(self)

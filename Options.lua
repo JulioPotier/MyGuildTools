@@ -363,13 +363,18 @@ local function RefreshGuildInviteOptionsUI()
 	else
 		checkbox:Disable()
 		checkbox:SetChecked(false)
-		MGTConfig.GuildInviteMenu = "DISABLED"
+		if MGTConfig then
+			MGTConfig.GuildInviteMenu = "DISABLED"
+		end
 		label:SetTextColor(0.5, 0.5, 0.5)
 		hint:SetTextColor(0.35, 0.35, 0.35)
 	end
 end
 
 guildInviteOpts.checkbox:SetScript("OnUpdate", function(frame)
+	if not MGTConfig then
+		return
+	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
 		return
 	end
@@ -381,6 +386,9 @@ guildInviteOpts.checkbox:SetScript("OnUpdate", function(frame)
 end)
 
 guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
+	if not MGTConfig then
+		return
+	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
 		frame:SetChecked(false)
 		MGTConfig.GuildInviteMenu = "DISABLED"
@@ -400,10 +408,15 @@ guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
 end)
 
 local guildInviteOptionsWatcher = CreateFrame("Frame")
+guildInviteOptionsWatcher:RegisterEvent("ADDON_LOADED")
 guildInviteOptionsWatcher:RegisterEvent("PLAYER_GUILD_UPDATE")
 guildInviteOptionsWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-guildInviteOptionsWatcher:SetScript("OnEvent", RefreshGuildInviteOptionsUI)
-RefreshGuildInviteOptionsUI()
+guildInviteOptionsWatcher:SetScript("OnEvent", function(self, event, arg1)
+	if event == "ADDON_LOADED" and arg1 ~= AddonName then
+		return
+	end
+	RefreshGuildInviteOptionsUI()
+end)
 
 -- Tabard Stalker
 
@@ -433,9 +446,113 @@ lblTabardStalkerHint:SetPoint("RIGHT", tabardStalkerBox, "RIGHT", -12, 0)
 lblTabardStalkerHint:SetJustifyH("LEFT")
 lblTabardStalkerHint:SetText(L["Tabard scan (party/raid)"])
 
+local chkTabardGuildOnly = CreateFrame("CheckButton", nil, tabardStalkerBox, "OptionsBaseCheckButtonTemplate")
+chkTabardGuildOnly:SetPoint("TOPLEFT", lblTabardStalkerHint, "BOTTOMLEFT", 0, -8)
+
+chkTabardGuildOnly:SetScript("OnUpdate", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if MGTConfig.TabardStalkerGuildOnly == "ENABLED" then
+		frame:SetChecked(true)
+	elseif MGTConfig.TabardStalkerGuildOnly == "DISABLED" then
+		frame:SetChecked(false)
+	end
+end)
+
+chkTabardGuildOnly:SetScript("OnClick", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if frame:GetChecked() then
+		MGTConfig.TabardStalkerGuildOnly = "ENABLED"
+	else
+		MGTConfig.TabardStalkerGuildOnly = "DISABLED"
+	end
+end)
+
+local chkTabardGuildOnlyText = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
+chkTabardGuildOnlyText:SetPoint("LEFT", chkTabardGuildOnly, "RIGHT", 0, 1)
+chkTabardGuildOnlyText:SetText(L["Only for guildies"])
+
+local lblTabardMinLevel = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblTabardMinLevel:SetPoint("TOPLEFT", chkTabardGuildOnly, "BOTTOMLEFT", 0, -8)
+lblTabardMinLevel:SetText(L["Minimum level:"])
+
+local editTabardMinLevel = CreateFrame("EditBox", nil, tabardStalkerBox, "InputBoxTemplate")
+editTabardMinLevel:SetSize(48, 20)
+editTabardMinLevel:SetPoint("LEFT", lblTabardMinLevel, "RIGHT", 8, 0)
+editTabardMinLevel:SetAutoFocus(false)
+editTabardMinLevel:SetNumeric(true)
+editTabardMinLevel:SetMaxLetters(2)
+
+editTabardMinLevel:SetScript("OnShow", function(self)
+	if MGTConfig and MGTConfig.TabardStalkerMinLevel then
+		self:SetText(MGTConfig.TabardStalkerMinLevel)
+	else
+		self:SetText("40")
+	end
+end)
+
+editTabardMinLevel:SetScript("OnEditFocusLost", function(self)
+	if not MGTConfig then
+		return
+	end
+	local level = tonumber(self:GetText())
+	if not level or level < 1 then
+		level = 1
+	elseif level > 60 then
+		level = 60
+	end
+	MGTConfig.TabardStalkerMinLevel = tostring(level)
+	self:SetText(MGTConfig.TabardStalkerMinLevel)
+end)
+
+editTabardMinLevel:SetScript("OnEnterPressed", function(self)
+	self:ClearFocus()
+end)
+
+editTabardMinLevel:SetScript("OnEscapePressed", function(self)
+	if MGTConfig and MGTConfig.TabardStalkerMinLevel then
+		self:SetText(MGTConfig.TabardStalkerMinLevel)
+	else
+		self:SetText("40")
+	end
+	self:ClearFocus()
+end)
+
+local chkTabardAutoScan = CreateFrame("CheckButton", nil, tabardStalkerBox, "OptionsBaseCheckButtonTemplate")
+chkTabardAutoScan:SetPoint("TOPLEFT", lblTabardMinLevel, "BOTTOMLEFT", 0, -8)
+
+chkTabardAutoScan:SetScript("OnUpdate", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if MGTConfig.TabardStalkerAutoScan == "ENABLED" then
+		frame:SetChecked(true)
+	elseif MGTConfig.TabardStalkerAutoScan == "DISABLED" then
+		frame:SetChecked(false)
+	end
+end)
+
+chkTabardAutoScan:SetScript("OnClick", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if frame:GetChecked() then
+		MGTConfig.TabardStalkerAutoScan = "ENABLED"
+	else
+		MGTConfig.TabardStalkerAutoScan = "DISABLED"
+	end
+end)
+
+local chkTabardAutoScanText = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
+chkTabardAutoScanText:SetPoint("LEFT", chkTabardAutoScan, "RIGHT", 0, 1)
+chkTabardAutoScanText:SetText(L["Auto scan when grouping"])
+
 local btnScanTabards = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
 btnScanTabards:SetSize(160, 22)
-btnScanTabards:SetPoint("TOPLEFT", lblTabardStalkerHint, "BOTTOMLEFT", 0, -8)
+btnScanTabards:SetPoint("TOPLEFT", chkTabardAutoScan, "BOTTOMLEFT", 0, -8)
 btnScanTabards:SetText(L["Scan group tabards"])
 
 local btnResetTabardCache = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
@@ -472,7 +589,7 @@ tabardSpinnerRotate:SetDuration(1)
 local function UpdateTabardStalkerBoxHeight()
 	local statusH = math.max(lblTabardScanStatus:GetStringHeight() or 0, lblTabardScanStatus:GetHeight() or 28, 28)
 	local hintH = math.max(lblTabardStalkerHint:GetStringHeight() or 0, 14)
-	tabardStalkerBox:SetHeight(8 + 16 + 4 + hintH + 8 + 22 + 4 + 22 + 4 + statusH + 14)
+	tabardStalkerBox:SetHeight(8 + 16 + 4 + hintH + 8 + 22 + 8 + 22 + 8 + 22 + 8 + 22 + 4 + 22 + 4 + statusH + 14)
 end
 
 local function UpdateOptionsScrollHeight()
@@ -529,10 +646,19 @@ AddonTable.OnTabardScanStarted = function()
 	RefreshTabardScanUI()
 end
 
-AddonTable.OnTabardScanFinished = function(missingCount)
+AddonTable.OnTabardScanFinished = function(missingCount, cannotInspectCount)
 	missingCount = missingCount or 0
-	if missingCount > 0 then
+	cannotInspectCount = cannotInspectCount or 0
+	if missingCount > 0 and cannotInspectCount > 0 then
+		lblTabardScanStatus:SetText(string.format(
+			L["Scan finished. %d without tabard, %d not inspectable."],
+			missingCount,
+			cannotInspectCount
+		))
+	elseif missingCount > 0 then
 		lblTabardScanStatus:SetText(string.format(L["Scan finished. %d without tabard."], missingCount))
+	elseif cannotInspectCount > 0 then
+		lblTabardScanStatus:SetText(string.format(L["Scan finished. %d not inspectable."], cannotInspectCount))
 	else
 		lblTabardScanStatus:SetText(L["Scan finished."])
 	end
