@@ -62,7 +62,7 @@ end
 
 local tooltipBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
 tooltipBox:SetPoint("TOPLEFT", optionsScrollChild, "TOPLEFT", 0, 0)
-tooltipBox:SetSize(420, 296)
+tooltipBox:SetSize(420, 268)
 tooltipBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -131,118 +131,109 @@ local chkIOShowHPBarText = tooltipBox:CreateFontString(nil, nil, "GameFontHighli
 chkIOShowHPBarText:SetPoint("LEFT", chkIOShowHPBar, "RIGHT", 0, 1)
 chkIOShowHPBarText:SetText(L["Show healthbar under player tooltips"])
 
--- Show Titles
+-- Tooltip format
 
-local chkIOShowTitles = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
-chkIOShowTitles:SetPoint("TOPLEFT", chkIOShowHPBar, "BOTTOMLEFT", 0, -8)
+local lblTooltipFormat = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblTooltipFormat:SetPoint("TOPLEFT", chkIOShowHPBar, "BOTTOMLEFT", 0, -12)
+lblTooltipFormat:SetText(L["Tooltip format:"])
 
-chkIOShowTitles:SetScript("OnUpdate", function(frame)
-	if MGTConfig.Titles == "ENABLED" then
-		chkIOShowTitles:SetChecked(true)
-	elseif MGTConfig.Titles == "DISABLED" then
-		chkIOShowTitles:SetChecked(false)
+local editTooltipFormatBg = CreateFrame("Frame", nil, tooltipBox, "BackdropTemplate")
+editTooltipFormatBg:SetPoint("TOPLEFT", lblTooltipFormat, "BOTTOMLEFT", -4, 4)
+editTooltipFormatBg:SetSize(388, 68)
+editTooltipFormatBg:SetBackdrop({
+	bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+	tile = true,
+	tileSize = 16,
+	edgeSize = 12,
+	insets = { left = 3, right = 3, top = 3, bottom = 3 },
+})
+editTooltipFormatBg:SetBackdropColor(0, 0, 0, 0.35)
+
+local editTooltipFormat = CreateFrame("EditBox", nil, editTooltipFormatBg)
+editTooltipFormat:SetPoint("TOPLEFT", editTooltipFormatBg, "TOPLEFT", 6, -6)
+editTooltipFormat:SetPoint("BOTTOMRIGHT", editTooltipFormatBg, "BOTTOMRIGHT", -6, 6)
+editTooltipFormat:SetFontObject(ChatFontNormal)
+editTooltipFormat:SetMultiLine(true)
+editTooltipFormat:SetAutoFocus(false)
+editTooltipFormat:SetMaxLetters(512)
+editTooltipFormat:EnableMouse(true)
+
+local function GetTooltipFormatDefault()
+	return "%GUILD% %RANK%"
+end
+
+local function MigrateTooltipFormat(text)
+	if not text or text == "" then
+		return GetTooltipFormatDefault()
+	end
+	if not text:find("%%NAME%%", 1, true)
+		and not text:find("%%LEVEL%%", 1, true)
+		and not text:find("%%RACE%%", 1, true)
+		and not text:find("%%CLASS%%", 1, true) then
+		return text
+	end
+	local lines = {}
+	for line in text:gmatch("[^\n]+") do
+		if not line:find("%%NAME%%", 1, true)
+			and not line:find("%%LEVEL%%", 1, true)
+			and not line:find("%%RACE%%", 1, true)
+			and not line:find("%%CLASS%%", 1, true) then
+			lines[#lines + 1] = line
+		end
+	end
+	if #lines > 0 then
+		return table.concat(lines, "\n")
+	end
+	return GetTooltipFormatDefault()
+end
+
+local function TrimTooltipFormat(text)
+	if strtrim then
+		return strtrim(text or "")
+	end
+	return (text or ""):match("^%s*(.-)%s*$") or ""
+end
+
+editTooltipFormat:SetScript("OnShow", function(self)
+	if MGTConfig and MGTConfig.TooltipFormat and MGTConfig.TooltipFormat ~= "" then
+		self:SetText(MigrateTooltipFormat(MGTConfig.TooltipFormat))
+	else
+		self:SetText(GetTooltipFormatDefault())
 	end
 end)
 
-chkIOShowTitles:SetScript("OnClick", function(frame)
-local tick = frame:GetChecked()
-
-	if tick == false then
-		MGTConfig.Titles = 'DISABLED'
-	elseif tick == true then
-		MGTConfig.Titles = 'ENABLED'
+editTooltipFormat:SetScript("OnEditFocusLost", function(self)
+	if not MGTConfig then
+		return
 	end
+	local text = MigrateTooltipFormat(TrimTooltipFormat(self:GetText() or ""))
+	if text == "" then
+		text = GetTooltipFormatDefault()
+	end
+	MGTConfig.TooltipFormat = text
+	self:SetText(text)
 end)
 
-local chkIOShowTitlesText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkIOShowTitlesText:SetPoint("LEFT", chkIOShowTitles, "RIGHT", 0, 1)
-chkIOShowTitlesText:SetText(L["Show player titles in tooltips"])
-
--- Show Realms
-
-local chkIOShowRealms = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
-chkIOShowRealms:SetPoint("TOPLEFT", chkIOShowTitles, "BOTTOMLEFT", 0, -8)
-
-chkIOShowRealms:SetScript("OnUpdate", function(frame)
-	if MGTConfig.Realms == "ENABLED" then
-		chkIOShowRealms:SetChecked(true)
-	elseif MGTConfig.Realms == "DISABLED" then
-		chkIOShowRealms:SetChecked(false)
+editTooltipFormat:SetScript("OnEscapePressed", function(self)
+	if MGTConfig and MGTConfig.TooltipFormat then
+		self:SetText(MGTConfig.TooltipFormat)
+	else
+		self:SetText(GetTooltipFormatDefault())
 	end
+	self:ClearFocus()
 end)
 
-chkIOShowRealms:SetScript("OnClick", function(frame)
-local tick = frame:GetChecked()
-
-	if tick == false then
-		MGTConfig.Realms = 'DISABLED'
-	elseif tick == true then
-		MGTConfig.Realms = 'ENABLED'
-	end
-end)
-
-local chkShowRealmsText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkShowRealmsText:SetPoint("LEFT", chkIOShowRealms, "RIGHT", 0, 1)
-chkShowRealmsText:SetText(L["Show player realms in tooltips"])
-
--- Show Guild Rank
-
-local chkIOShowGuildRank = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
-chkIOShowGuildRank:SetPoint("TOPLEFT", chkIOShowRealms, "BOTTOMLEFT", 0, -8)
-
-chkIOShowGuildRank:SetScript("OnUpdate", function(frame)
-	if MGTConfig.GuildRank == "ENABLED" then
-		chkIOShowGuildRank:SetChecked(true)
-	elseif MGTConfig.GuildRank == "DISABLED" then
-		chkIOShowGuildRank:SetChecked(false)
-	end
-end)
-
-chkIOShowGuildRank:SetScript("OnClick", function(frame)
-local tick = frame:GetChecked()
-
-	if tick == false then
-		MGTConfig.GuildRank = 'DISABLED'
-	elseif tick == true then
-		MGTConfig.GuildRank = 'ENABLED'
-	end
-end)
-
-local chkIOShowGuildRankText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkIOShowGuildRankText:SetPoint("LEFT", chkIOShowGuildRank, "RIGHT", 0, 1)
-chkIOShowGuildRankText:SetText(L["Show guild rank in tooltips"])
-
--- Show Rank Second
-
-local chkShowGuildRankSecond = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
-chkShowGuildRankSecond:SetPoint("TOPLEFT", chkIOShowGuildRank, "BOTTOMLEFT", 0, -8)
-
-chkShowGuildRankSecond:SetScript("OnUpdate", function(frame)
-	if MGTConfig.SimpleRanks == "YES" then
-		chkShowGuildRankSecond:SetChecked(true)
-	elseif MGTConfig.SimpleRanks == "NO" then
-		chkShowGuildRankSecond:SetChecked(false)
-	end
-end)
-
-chkShowGuildRankSecond:SetScript("OnClick", function(frame)
-local tick = frame:GetChecked()
-
-	if tick == false then
-		MGTConfig.SimpleRanks = 'NO'
-	elseif tick == true then
-		MGTConfig.SimpleRanks = 'YES'
-	end
-end)
-
-local chkShowGuildRankSecondText = tooltipBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkShowGuildRankSecondText:SetPoint("LEFT", chkShowGuildRankSecond, "RIGHT", 0, 1)
-chkShowGuildRankSecondText:SetText(L["Show rank after guild name"])
+local lblTooltipFormatLegend = tooltipBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblTooltipFormatLegend:SetPoint("TOPLEFT", editTooltipFormatBg, "BOTTOMLEFT", 0, -4)
+lblTooltipFormatLegend:SetWidth(380)
+lblTooltipFormatLegend:SetJustifyH("LEFT")
+lblTooltipFormatLegend:SetText(L["Tooltip format legend"])
 
 -- Guild notes (our guild roster only)
 
 local chkIOGuildNotes = CreateFrame("CheckButton", nil, tooltipBox, "OptionsBaseCheckButtonTemplate")
-chkIOGuildNotes:SetPoint("TOPLEFT", chkShowGuildRankSecond, "BOTTOMLEFT", 0, -8)
+chkIOGuildNotes:SetPoint("TOPLEFT", lblTooltipFormatLegend, "BOTTOMLEFT", 0, -8)
 
 chkIOGuildNotes:SetScript("OnUpdate", function(frame)
 	if MGTConfig.GuildNotes == "ENABLED" then
@@ -281,34 +272,51 @@ if GetLocale() == "frFR" then
 else
 	UIDropDownMenu_SetWidth(ddFontSize, 96)
 end
-UIDropDownMenu_SetText(ddFontSize, L["Select One"])
+local MGT_FONT_SIZE_OPTIONS = { 12, 14, 16, 18, 20 }
 
--- Create and bind the initialization function to the dropdown menu
+local function MGTNormalizeFontSize(size)
+	local n = tonumber(size)
+	for _, option in ipairs(MGT_FONT_SIZE_OPTIONS) do
+		if n == option then
+			return tostring(option)
+		end
+	end
+	return "14"
+end
+
+local function RefreshFontSizeDropdown()
+	if not ddFontSize or not MGTConfig then
+		return
+	end
+	local size = MGTNormalizeFontSize(MGTConfig.FontSize)
+	MGTConfig.FontSize = size
+	UIDropDownMenu_SetText(ddFontSize, size)
+end
+
 UIDropDownMenu_Initialize(ddFontSize, function(self, level, menuList)
-local info = UIDropDownMenu_CreateInfo()
+	local info = UIDropDownMenu_CreateInfo()
+	local current = MGTNormalizeFontSize(MGTConfig and MGTConfig.FontSize)
 	info.func = self.SetValue
-	info.text, info.arg1 = "12", 12
-	UIDropDownMenu_AddButton(info)
-	info.text, info.arg1 = "14", 14
-	UIDropDownMenu_AddButton(info)
-	info.text, info.arg1 = "16", 16
-	UIDropDownMenu_AddButton(info)
-	info.text, info.arg1 = "18", 18
-	UIDropDownMenu_AddButton(info)
-	info.text, info.arg1 = "20", 20
-	UIDropDownMenu_AddButton(info)
+	for _, size in ipairs(MGT_FONT_SIZE_OPTIONS) do
+		info.text = tostring(size)
+		info.arg1 = size
+		info.checked = (tostring(size) == current)
+		UIDropDownMenu_AddButton(info)
+	end
 end)
 
--- Implement the function to change the font size
 function ddFontSize:SetValue(newValue)
-	MGTConfig.FontSize = newValue
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[" .. L["MyGuildTools"] .. "]|r " .. L["Font size changed to"] .. " " .. newValue .. ".")
-	-- Update the text; if we merely wanted it to display newValue, we would not need to do this
+	if not MGTConfig then
+		return
+	end
+	MGTConfig.FontSize = tostring(newValue)
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[" .. L["MyGuildTools"] .. "]|r " .. L["Font size changed to"] .. " " .. MGTConfig.FontSize .. ".")
 	UIDropDownMenu_SetText(ddFontSize, MGTConfig.FontSize)
-	-- Because this is called from a sub-menu, only that menu level is closed by default.
-	-- Close the entire menu with this next call
 	CloseDropDownMenus()
 end
+
+ddFontSize:SetScript("OnShow", RefreshFontSizeDropdown)
+RefreshFontSizeDropdown()
 
 -- Guild Invite options section
 
@@ -418,10 +426,171 @@ guildInviteOptionsWatcher:SetScript("OnEvent", function(self, event, arg1)
 	RefreshGuildInviteOptionsUI()
 end)
 
+-- Honor Guild Death
+
+local honorGuildDeathBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+honorGuildDeathBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
+honorGuildDeathBox:SetSize(420, 248)
+honorGuildDeathBox:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true,
+	tileSize = 32,
+	edgeSize = 16,
+	insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+honorGuildDeathBox:SetBackdropColor(0, 0, 0, 0.5)
+
+local lblHonorGuildDeathSection = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblHonorGuildDeathSection:SetPoint("TOPLEFT", honorGuildDeathBox, "TOPLEFT", 12, -8)
+lblHonorGuildDeathSection:SetText(L["Honor Guild Death"])
+
+local chkHonorGuildDeathAuto = CreateFrame("CheckButton", nil, honorGuildDeathBox, "OptionsBaseCheckButtonTemplate")
+chkHonorGuildDeathAuto:SetPoint("TOPLEFT", lblHonorGuildDeathSection, "BOTTOMLEFT", 0, -8)
+
+chkHonorGuildDeathAuto:SetScript("OnUpdate", function(frame)
+	if MGTConfig and MGTConfig.HonorGuildDeathAuto == "ENABLED" then
+		frame:SetChecked(true)
+	elseif MGTConfig and MGTConfig.HonorGuildDeathAuto == "DISABLED" then
+		frame:SetChecked(false)
+	end
+end)
+
+chkHonorGuildDeathAuto:SetScript("OnClick", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if frame:GetChecked() then
+		MGTConfig.HonorGuildDeathAuto = "ENABLED"
+		if AddonTable.RefreshHonorGuildChannel then
+			AddonTable.RefreshHonorGuildChannel()
+		end
+		if AddonTable.RefreshHonorGuildRoster then
+			AddonTable.RefreshHonorGuildRoster()
+		end
+	else
+		MGTConfig.HonorGuildDeathAuto = "DISABLED"
+	end
+	RefreshHonorGuildDeathUI()
+end)
+
+local chkHonorGuildDeathAutoText = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontHighlight")
+chkHonorGuildDeathAutoText:SetPoint("LEFT", chkHonorGuildDeathAuto, "RIGHT", 0, 1)
+chkHonorGuildDeathAutoText:SetText(L["Automatically honor fallen heroes"])
+
+local lblHonorChannelStatus = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblHonorChannelStatus:SetPoint("TOPLEFT", chkHonorGuildDeathAuto, "BOTTOMLEFT", 0, -4)
+lblHonorChannelStatus:SetPoint("RIGHT", honorGuildDeathBox, "RIGHT", -12, 0)
+lblHonorChannelStatus:SetJustifyH("LEFT")
+lblHonorChannelStatus:SetHeight(28)
+
+local lblHonorGuildDeathFormat = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblHonorGuildDeathFormat:SetPoint("TOPLEFT", lblHonorChannelStatus, "BOTTOMLEFT", 0, -4)
+lblHonorGuildDeathFormat:SetText(L["Honor message format:"])
+
+local editHonorFormatBg = CreateFrame("Frame", nil, honorGuildDeathBox, "BackdropTemplate")
+editHonorFormatBg:SetPoint("TOPLEFT", lblHonorGuildDeathFormat, "BOTTOMLEFT", -4, 4)
+editHonorFormatBg:SetSize(388, 68)
+editHonorFormatBg:SetBackdrop({
+	bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+	tile = true,
+	tileSize = 16,
+	edgeSize = 12,
+	insets = { left = 3, right = 3, top = 3, bottom = 3 },
+})
+editHonorFormatBg:SetBackdropColor(0, 0, 0, 0.35)
+
+local editHonorFormat = CreateFrame("EditBox", nil, editHonorFormatBg)
+editHonorFormat:SetPoint("TOPLEFT", editHonorFormatBg, "TOPLEFT", 6, -6)
+editHonorFormat:SetPoint("BOTTOMRIGHT", editHonorFormatBg, "BOTTOMRIGHT", -6, 6)
+editHonorFormat:SetFontObject(ChatFontNormal)
+editHonorFormat:SetMultiLine(true)
+editHonorFormat:SetAutoFocus(false)
+editHonorFormat:SetMaxLetters(512)
+editHonorFormat:EnableMouse(true)
+
+local function GetHonorFormatDefault()
+	return "F"
+end
+
+local function TrimHonorFormat(text)
+	if strtrim then
+		return strtrim(text or "")
+	end
+	return (text or ""):match("^%s*(.-)%s*$") or ""
+end
+
+editHonorFormat:SetScript("OnShow", function(self)
+	if MGTConfig and MGTConfig.HonorGuildDeathFormat and MGTConfig.HonorGuildDeathFormat ~= "" then
+		self:SetText(MGTConfig.HonorGuildDeathFormat)
+	else
+		self:SetText(GetHonorFormatDefault())
+	end
+end)
+
+editHonorFormat:SetScript("OnEditFocusLost", function(self)
+	if not MGTConfig then
+		return
+	end
+	local text = TrimHonorFormat(self:GetText() or "")
+	if text == "" then
+		text = GetHonorFormatDefault()
+	end
+	MGTConfig.HonorGuildDeathFormat = text
+	self:SetText(text)
+end)
+
+editHonorFormat:SetScript("OnEscapePressed", function(self)
+	if MGTConfig and MGTConfig.HonorGuildDeathFormat then
+		self:SetText(MGTConfig.HonorGuildDeathFormat)
+	else
+		self:SetText(GetHonorFormatDefault())
+	end
+	self:ClearFocus()
+end)
+
+local lblHonorFormatLegend = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblHonorFormatLegend:SetPoint("TOPLEFT", editHonorFormatBg, "BOTTOMLEFT", 0, -4)
+lblHonorFormatLegend:SetWidth(380)
+lblHonorFormatLegend:SetJustifyH("LEFT")
+lblHonorFormatLegend:SetText(L["Honor format legend"])
+
+function RefreshHonorGuildDeathUI()
+	if not lblHonorChannelStatus then
+		return
+	end
+	if not IsInGuild or not IsInGuild() then
+		lblHonorChannelStatus:SetText(L["Honor death requires guild"])
+		return
+	end
+	if MGTConfig and MGTConfig.HonorGuildDeathAuto == "ENABLED" then
+		if AddonTable.IsHardcoreDeathsChannelJoined and AddonTable.IsHardcoreDeathsChannelJoined() then
+			lblHonorChannelStatus:SetText(L["HardcoreDeaths channel joined"])
+		else
+			if AddonTable.EnsureHardcoreDeathsChannel then
+				AddonTable.EnsureHardcoreDeathsChannel()
+			end
+			if AddonTable.IsHardcoreDeathsChannelJoined and AddonTable.IsHardcoreDeathsChannelJoined() then
+				lblHonorChannelStatus:SetText(L["HardcoreDeaths channel joined"])
+			else
+				lblHonorChannelStatus:SetText(L["Join HardcoreDeaths channel"])
+			end
+		end
+	else
+		lblHonorChannelStatus:SetText(L["Honor death auto disabled"])
+	end
+end
+
+local honorGuildDeathWatcher = CreateFrame("Frame")
+honorGuildDeathWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
+honorGuildDeathWatcher:RegisterEvent("CHAT_MSG_CHANNEL_NOTICE")
+honorGuildDeathWatcher:SetScript("OnEvent", RefreshHonorGuildDeathUI)
+
 -- Tabard Stalker
 
 local tabardStalkerBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-tabardStalkerBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
+tabardStalkerBox:SetPoint("TOPLEFT", honorGuildDeathBox, "BOTTOMLEFT", 0, -16)
 tabardStalkerBox:SetSize(420, 196)
 if tabardStalkerBox.SetClipsChildren then
 	tabardStalkerBox:SetClipsChildren(true)
@@ -594,7 +763,7 @@ end
 
 local function UpdateOptionsScrollHeight()
 	UpdateTabardStalkerBoxHeight()
-	local height = tooltipBox:GetHeight() + guildInviteBox:GetHeight() + tabardStalkerBox:GetHeight() + 48
+	local height = tooltipBox:GetHeight() + guildInviteBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + 48
 	optionsScrollChild:SetHeight(height)
 end
 
@@ -692,9 +861,18 @@ tabardScanWatcher:RegisterEvent("RAID_ROSTER_UPDATE")
 tabardScanWatcher:SetScript("OnEvent", RefreshTabardScanUI)
 RefreshTabardScanUI()
 
-optionsScrollChild:SetScript("OnShow", UpdateOptionsScrollHeight)
-GTIOFrame:SetScript("OnShow", UpdateOptionsScrollHeight)
+optionsScrollChild:SetScript("OnShow", function()
+	UpdateOptionsScrollHeight()
+	RefreshHonorGuildDeathUI()
+	RefreshFontSizeDropdown()
+end)
+GTIOFrame:SetScript("OnShow", function()
+	UpdateOptionsScrollHeight()
+	RefreshHonorGuildDeathUI()
+	RefreshFontSizeDropdown()
+end)
 UpdateOptionsScrollHeight()
+RefreshHonorGuildDeathUI()
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)
@@ -712,7 +890,7 @@ if msg == "" or msg == nil then
 		print("Category not found")
 	end
 elseif msg == "help" then
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r The following arguments are valid:\ncolour/color - Toggle colouring of player name and class\nhp/health/bar - Toggle the HP bar under the tooltip\ntitles - Toggle showing of player titles\nrealms - Toggle showing of player realms\ngrank/guildrank - Toggle showing of player guild ranks\ngnotes/guildnotes - Toggle guild notes on tooltips")
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r The following arguments are valid:\ncolour/color - Toggle colouring of player name and class\nhp/health/bar - Toggle the HP bar under the tooltip\ngnotes/guildnotes - Toggle guild notes on tooltips\ntest \"...\" - Test Honor Guild Death parsing\n\nFormats are configured in the addon options (Settings).")
 elseif msg == "colour" or msg == "color" then
 	if MGTConfig.Colour == "ENABLED" then
 		MGTConfig.Colour = 'DISABLED'
@@ -725,29 +903,20 @@ elseif msg == "hp" or msg == "health" or msg == "bar" then
 	elseif MGTConfig.HealthBar == "DISABLED" then
 		MGTConfig.HealthBar = 'ENABLED'
 	end
-elseif msg == "titles" then
-	if MGTConfig.Titles == "ENABLED" then
-		MGTConfig.Titles = 'DISABLED'
-	elseif MGTConfig.Titles == "DISABLED" then
-		MGTConfig.Titles = 'ENABLED'
-	end
-elseif msg == "realms" then
-	if MGTConfig.Realms == "ENABLED" then
-		MGTConfig.Realms = 'DISABLED'
-	elseif MGTConfig.Realms == "DISABLED" then
-		MGTConfig.Realms = 'ENABLED'
-	end
-elseif msg == "grank" or msg == "guildrank" then
-	if MGTConfig.GuildRank == "ENABLED" then
-		MGTConfig.GuildRank = 'DISABLED'
-	elseif MGTConfig.GuildRank == "DISABLED" then
-		MGTConfig.GuildRank = 'ENABLED'
-	end
 elseif msg == "gnotes" or msg == "guildnotes" then
 	if MGTConfig.GuildNotes == "ENABLED" then
 		MGTConfig.GuildNotes = "DISABLED"
 	elseif MGTConfig.GuildNotes == "DISABLED" then
 		MGTConfig.GuildNotes = "ENABLED"
+	end
+elseif msg:match("^test ") then
+	local testMsg = msg:match('^test "(.*)"$') or msg:match("^test (.+)$")
+	if not testMsg or testMsg == "" then
+		DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["Honor death test usage"])
+	else
+		if AddonTable.TestHonorDeathMessage then
+			AddonTable.TestHonorDeathMessage(testMsg)
+		end
 	end
 end
 
