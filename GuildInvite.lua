@@ -29,8 +29,29 @@ function AddonTable.PlayerCanGuildInvite()
 	return true
 end
 
+function AddonTable.EnsureMGTCharConfig()
+	MGTCharConfig = MGTCharConfig or {}
+	if MGTCharConfig.GuildInviteMenu == nil then
+		if MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" then
+			MGTCharConfig.GuildInviteMenu = "ENABLED"
+		else
+			MGTCharConfig.GuildInviteMenu = "DISABLED"
+		end
+	end
+end
+
+function AddonTable.GetGuildInviteMenuSetting()
+	AddonTable.EnsureMGTCharConfig()
+	return MGTCharConfig.GuildInviteMenu
+end
+
+function AddonTable.SetGuildInviteMenuSetting(value)
+	AddonTable.EnsureMGTCharConfig()
+	MGTCharConfig.GuildInviteMenu = value
+end
+
 local function IsGuildInviteMenuEnabled()
-	return MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" and AddonTable.PlayerCanGuildInvite()
+	return AddonTable.GetGuildInviteMenuSetting() == "ENABLED" and AddonTable.PlayerCanGuildInvite()
 end
 
 local function GetContextPlayerName(contextData)
@@ -410,6 +431,8 @@ local function ResolveUnitFromPlayerName(playerName)
 
 	return nil
 end
+
+AddonTable.ResolveUnitFromPlayerName = ResolveUnitFromPlayerName
 
 local function HideGinviteButton()
 	if popup then

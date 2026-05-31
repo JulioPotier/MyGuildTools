@@ -49,7 +49,6 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["HealthBar"] = "ENABLED",
 			["TooltipFormat"] = "%GUILD% %RANK%",
 			["FontSize"] = "14",
-			["GuildInviteMenu"] = "DISABLED",
 			["GuildNotes"] = "DISABLED",
 			["TabardStalkerGuildOnly"] = "ENABLED",
 			["TabardStalkerMinLevel"] = "40",
@@ -58,6 +57,11 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["HonorGuildDeathFormat"] = "F",
 			["HonorDeathRosterCache"] = {},
 			["HonorDeathPlayerCache"] = {},
+			["BlockGroupInvites"] = "DISABLED",
+			["GroupInviteBlockMode"] = "NONE",
+			["MinimapBlockButton"] = "DISABLED",
+			["MinimapBlockAngle"] = 225,
+			["TargetPlayerFromChat"] = "DISABLED",
 		}
 	end
 	
@@ -74,8 +78,22 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			MGTConfig.TooltipFormat = "%GUILDNAME%"
 		end
 	end
-	if MGTConfig.GuildInviteMenu == nil then MGTConfig.GuildInviteMenu = 'DISABLED' end
 	if MGTConfig.GuildNotes == nil then MGTConfig.GuildNotes = 'DISABLED' end
+	if AddonTable.EnsureMGTCharConfig then
+		AddonTable.EnsureMGTCharConfig()
+	end
+	if AddonTable.EnsureMGTGroupInviteConfig then
+		AddonTable.EnsureMGTGroupInviteConfig()
+	end
+	if AddonTable.EnsureMGTChatTargetConfig then
+		AddonTable.EnsureMGTChatTargetConfig()
+	end
+	if AddonTable.RefreshGroupInviteBlocker then
+		AddonTable.RefreshGroupInviteBlocker()
+	end
+	if AddonTable.RefreshGroupInviteMinimapButton then
+		AddonTable.RefreshGroupInviteMinimapButton()
+	end
 	if MGTConfig.TabardStalkerGuildOnly == nil then MGTConfig.TabardStalkerGuildOnly = 'ENABLED' end
 	if MGTConfig.TabardStalkerMinLevel == nil then MGTConfig.TabardStalkerMinLevel = '40' end
 	if MGTConfig.TabardStalkerAutoScan == nil then MGTConfig.TabardStalkerAutoScan = 'DISABLED' end

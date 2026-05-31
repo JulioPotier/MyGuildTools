@@ -9,7 +9,9 @@ local honorState = {
 	guildMembers = {},
 	memberDetails = {},
 	whoPending = {},
+	whoDeferredRace = {},
 	killerWhoPending = {},
+	whoDeferredKiller = {},
 	deferredDeathMessages = {},
 }
 
@@ -177,17 +179,68 @@ local function MGTStoreMemberDetails(name, class, race, sex)
 	end
 end
 
-local function MGTRequestWhoForRace(name, whoQuery)
-	if name == "" or honorState.whoPending[name] then
-		return
+local function MGTCanSendWho()
+	return not (InCombatLockdown and InCombatLockdown())
+end
+
+local function MGTSendWhoQuery(query)
+	if not MGTCanSendWho() then
+		return false
 	end
-	honorState.whoPending[name] = true
-	local query = whoQuery or name
 	if C_FriendList and C_FriendList.SendWho then
 		C_FriendList.SendWho(query)
 	elseif SendWho then
 		SendWho(query)
+	else
+		return false
 	end
+	return true
+end
+
+local function MGTFlushDeferredWhoRequests()
+	if not MGTCanSendWho() then
+		return
+	end
+
+	for name, query in pairs(honorState.whoDeferredRace) do
+		if name == "" or honorState.whoPending[name] then
+			honorState.whoDeferredRace[name] = nil
+		else
+			honorState.whoDeferredRace[name] = nil
+			if MGTSendWhoQuery(query) then
+				honorState.whoPending[name] = true
+			else
+				honorState.whoDeferredRace[name] = query
+			end
+			return
+		end
+	end
+
+	for name, query in pairs(honorState.whoDeferredKiller) do
+		if name == "" or honorState.killerWhoPending[name] then
+			honorState.whoDeferredKiller[name] = nil
+		else
+			honorState.whoDeferredKiller[name] = nil
+			if MGTSendWhoQuery(query) then
+				honorState.killerWhoPending[name] = true
+			else
+				honorState.whoDeferredKiller[name] = query
+			end
+			return
+		end
+	end
+end
+
+local function MGTRequestWhoForRace(name, whoQuery)
+	if name == "" or honorState.whoPending[name] then
+		return
+	end
+	local query = whoQuery or name
+	if not MGTSendWhoQuery(query) then
+		honorState.whoDeferredRace[name] = query
+		return
+	end
+	honorState.whoPending[name] = true
 end
 
 local function MGTGetPlayerCache()
@@ -310,13 +363,12 @@ local function MGTRequestWhoForKiller(name, whoQuery)
 	if name == "" or honorState.killerWhoPending[name] then
 		return
 	end
-	honorState.killerWhoPending[name] = true
 	local query = whoQuery or name
-	if C_FriendList and C_FriendList.SendWho then
-		C_FriendList.SendWho(query)
-	elseif SendWho then
-		SendWho(query)
+	if not MGTSendWhoQuery(query) then
+		honorState.whoDeferredKiller[name] = query
+		return
 	end
+	honorState.killerWhoPending[name] = true
 end
 
 local function MGTFormatSlainReason(killer, isPlayer, playerSuffix)
@@ -780,6 +832,7 @@ honorFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
 honorFrame:RegisterEvent("PLAYER_GUILD_UPDATE")
 honorFrame:RegisterEvent("CHAT_MSG_CHANNEL")
 honorFrame:RegisterEvent("WHO_LIST_UPDATE")
+honorFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 
 honorFrame:SetScript("OnEvent", function(_, event, ...)
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
@@ -802,6 +855,11 @@ honorFrame:SetScript("OnEvent", function(_, event, ...)
 		if MGTIsHonorAutoEnabled() then
 			MGTRebuildHonorGuildRoster()
 		end
+		return
+	end
+
+	if event == "PLAYER_REGEN_ENABLED" then
+		MGTFlushDeferredWhoRequests()
 		return
 	end
 
@@ -839,6 +897,7 @@ honorFrame:SetScript("OnEvent", function(_, event, ...)
 			honorState.killerWhoPending[name] = nil
 		end
 		MGTProcessDeferredHonorDeaths()
+		MGTFlushDeferredWhoRequests()
 	end
 end)
 

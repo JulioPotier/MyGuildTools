@@ -318,12 +318,12 @@ end
 ddFontSize:SetScript("OnShow", RefreshFontSizeDropdown)
 RefreshFontSizeDropdown()
 
--- Guild Invite options section
+-- Invitations options section
 
-local guildInviteBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-guildInviteBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
-guildInviteBox:SetSize(420, 112)
-guildInviteBox:SetBackdrop({
+local invitationsBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+invitationsBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
+invitationsBox:SetSize(420, 112)
+invitationsBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 	tile = true,
@@ -331,29 +331,144 @@ guildInviteBox:SetBackdrop({
 	edgeSize = 16,
 	insets = { left = 4, right = 4, top = 4, bottom = 4 },
 })
-guildInviteBox:SetBackdropColor(0, 0, 0, 0.5)
+invitationsBox:SetBackdropColor(0, 0, 0, 0.5)
 
-local lblGuildInviteSection = guildInviteBox:CreateFontString(nil, nil, "GameFontNormalLarge")
-lblGuildInviteSection:SetPoint("TOPLEFT", guildInviteBox, "TOPLEFT", 12, -8)
-lblGuildInviteSection:SetText(L["Guild Invite"])
+local lblInvitationsSection = invitationsBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblInvitationsSection:SetPoint("TOPLEFT", invitationsBox, "TOPLEFT", 12, -8)
+lblInvitationsSection:SetText(L["Invitations"])
 
 local guildInviteOpts = {}
 
-guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, guildInviteBox, "OptionsBaseCheckButtonTemplate")
-guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblGuildInviteSection, "BOTTOMLEFT", 0, -8)
+guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblInvitationsSection, "BOTTOMLEFT", 0, -8)
 
-guildInviteOpts.label = guildInviteBox:CreateFontString(nil, nil, "GameFontHighlight")
+guildInviteOpts.label = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
 guildInviteOpts.label:SetPoint("LEFT", guildInviteOpts.checkbox, "RIGHT", 0, 1)
 guildInviteOpts.label:SetText(L["Add a right-click menu to /ginvite"])
 
-guildInviteOpts.hint = guildInviteBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 0, -8)
-guildInviteOpts.hint:SetPoint("LEFT", guildInviteBox, "LEFT", 28, 0)
-guildInviteOpts.hint:SetPoint("RIGHT", guildInviteBox, "RIGHT", -12, 0)
+guildInviteOpts.hint = invitationsBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 16, -8)
+guildInviteOpts.hint:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
 guildInviteOpts.hint:SetJustifyH("LEFT")
 guildInviteOpts.hint:SetJustifyV("TOP")
 guildInviteOpts.hint:SetSpacing(4)
 guildInviteOpts.hint:SetText(L["Guild invite key hint"])
+
+local chkBlockGroupInvites = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+chkBlockGroupInvites:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", -16, -8)
+
+local lblBlockGroupInvites = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblBlockGroupInvites:SetPoint("LEFT", chkBlockGroupInvites, "RIGHT", 0, 1)
+lblBlockGroupInvites:SetText(L["Block Group Invitations"])
+
+local chkMinimapBlockButton = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+chkMinimapBlockButton:SetPoint("TOPLEFT", chkBlockGroupInvites, "BOTTOMLEFT", 0, -4)
+
+local lblMinimapBlockButton = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblMinimapBlockButton:SetPoint("LEFT", chkMinimapBlockButton, "RIGHT", 0, 1)
+lblMinimapBlockButton:SetText(L["Add minimap shortcut button"])
+
+local lblGroupBlockMode = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblGroupBlockMode:SetPoint("TOPLEFT", chkMinimapBlockButton, "BOTTOMLEFT", 0, -8)
+lblGroupBlockMode:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
+lblGroupBlockMode:SetJustifyH("LEFT")
+lblGroupBlockMode:SetText(L["Group invite block mode:"])
+
+local ddGroupBlockMode = CreateFrame("FRAME", "MGTGroupBlockMode", invitationsBox, "UIDropDownMenuTemplate")
+ddGroupBlockMode:SetPoint("TOPLEFT", lblGroupBlockMode, "BOTTOMLEFT", -16, -4)
+if GetLocale() == "frFR" then
+	UIDropDownMenu_SetWidth(ddGroupBlockMode, 220)
+else
+	UIDropDownMenu_SetWidth(ddGroupBlockMode, 200)
+end
+
+local GROUP_BLOCK_MODE_OPTIONS = {
+	AddonTable.GROUP_INVITE_BLOCK_NONE,
+	AddonTable.GROUP_INVITE_BLOCK_COMBAT,
+	AddonTable.GROUP_INVITE_BLOCK_ALWAYS,
+}
+
+local function RefreshGroupBlockModeDropdown()
+	if not ddGroupBlockMode or not AddonTable.GetGroupInviteBlockMode then
+		return
+	end
+	local mode = AddonTable.GetGroupInviteBlockMode()
+	UIDropDownMenu_SetText(ddGroupBlockMode, AddonTable.GetGroupInviteBlockModeLabel(mode))
+end
+
+UIDropDownMenu_Initialize(ddGroupBlockMode, function(self, level, menuList)
+	local info = UIDropDownMenu_CreateInfo()
+	local current = AddonTable.GetGroupInviteBlockMode and AddonTable.GetGroupInviteBlockMode()
+	info.func = self.SetValue
+	for _, mode in ipairs(GROUP_BLOCK_MODE_OPTIONS) do
+		info.text = AddonTable.GetGroupInviteBlockModeLabel(mode)
+		info.arg1 = mode
+		info.checked = (mode == current)
+		UIDropDownMenu_AddButton(info)
+	end
+end)
+
+function ddGroupBlockMode:SetValue(newMode)
+	if AddonTable.SetGroupInviteBlockMode then
+		AddonTable.SetGroupInviteBlockMode(newMode)
+	end
+	RefreshGroupBlockModeDropdown()
+	CloseDropDownMenus()
+end
+
+local function UpdateInvitationsBoxHeight()
+	local hintH = math.max(guildInviteOpts.hint:GetStringHeight() or 0, 14)
+	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8 + 22 + 14
+	if AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive() then
+		h = h + 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
+	end
+	invitationsBox:SetHeight(h)
+end
+
+local function RefreshInvitationsBlockControls()
+	local blockActive = AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive()
+	if blockActive then
+		chkMinimapBlockButton:Show()
+		lblMinimapBlockButton:Show()
+		lblGroupBlockMode:Show()
+		ddGroupBlockMode:Show()
+	else
+		chkMinimapBlockButton:Hide()
+		lblMinimapBlockButton:Hide()
+		lblGroupBlockMode:Hide()
+		ddGroupBlockMode:Hide()
+	end
+	UpdateInvitationsBoxHeight()
+end
+
+function AddonTable.RefreshInvitationsOptionsUI()
+	if AddonTable.IsGroupInviteBlockActive then
+		chkBlockGroupInvites:SetChecked(AddonTable.IsGroupInviteBlockActive())
+	end
+	if AddonTable.IsMinimapBlockButtonEnabled then
+		chkMinimapBlockButton:SetChecked(AddonTable.IsMinimapBlockButtonEnabled())
+	end
+	RefreshGroupBlockModeDropdown()
+	RefreshInvitationsBlockControls()
+	if UpdateOptionsScrollHeight then
+		UpdateOptionsScrollHeight()
+	end
+end
+
+chkBlockGroupInvites:SetScript("OnClick", function(frame)
+	if not AddonTable.SetGroupInviteBlockActive then
+		return
+	end
+	AddonTable.SetGroupInviteBlockActive(frame:GetChecked() == true)
+	RefreshInvitationsBlockControls()
+end)
+
+chkMinimapBlockButton:SetScript("OnClick", function(frame)
+	if not AddonTable.SetMinimapBlockButtonEnabled then
+		return
+	end
+	AddonTable.SetMinimapBlockButtonEnabled(frame:GetChecked() == true)
+end)
 
 local function RefreshGuildInviteOptionsUI()
 	local checkbox = guildInviteOpts.checkbox
@@ -364,42 +479,40 @@ local function RefreshGuildInviteOptionsUI()
 	end
 
 	local canUse = AddonTable.PlayerCanGuildInvite and AddonTable.PlayerCanGuildInvite()
+	local enabled = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting() == "ENABLED"
 	if canUse then
 		checkbox:Enable()
+		checkbox:SetChecked(enabled)
 		label:SetTextColor(1, 0.82, 0)
 		hint:SetTextColor(0.5, 0.5, 0.5)
 	else
 		checkbox:Disable()
-		checkbox:SetChecked(false)
-		if MGTConfig then
-			MGTConfig.GuildInviteMenu = "DISABLED"
-		end
+		checkbox:SetChecked(enabled)
 		label:SetTextColor(0.5, 0.5, 0.5)
 		hint:SetTextColor(0.35, 0.35, 0.35)
 	end
 end
 
 guildInviteOpts.checkbox:SetScript("OnUpdate", function(frame)
-	if not MGTConfig then
+	if not AddonTable.GetGuildInviteMenuSetting then
 		return
 	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
 		return
 	end
-	if MGTConfig.GuildInviteMenu == "ENABLED" then
+	if AddonTable.GetGuildInviteMenuSetting() == "ENABLED" then
 		frame:SetChecked(true)
-	elseif MGTConfig.GuildInviteMenu == "DISABLED" then
+	else
 		frame:SetChecked(false)
 	end
 end)
 
 guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
-	if not MGTConfig then
+	if not AddonTable.SetGuildInviteMenuSetting then
 		return
 	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
-		frame:SetChecked(false)
-		MGTConfig.GuildInviteMenu = "DISABLED"
+		frame:SetChecked(AddonTable.GetGuildInviteMenuSetting() == "ENABLED")
 		if not IsInGuild or not IsInGuild() then
 			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You are not in a guild."])
 		else
@@ -409,9 +522,9 @@ guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
 	end
 	local tick = frame:GetChecked()
 	if tick == false then
-		MGTConfig.GuildInviteMenu = "DISABLED"
+		AddonTable.SetGuildInviteMenuSetting("DISABLED")
 	elseif tick == true then
-		MGTConfig.GuildInviteMenu = "ENABLED"
+		AddonTable.SetGuildInviteMenuSetting("ENABLED")
 	end
 end)
 
@@ -424,12 +537,15 @@ guildInviteOptionsWatcher:SetScript("OnEvent", function(self, event, arg1)
 		return
 	end
 	RefreshGuildInviteOptionsUI()
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
 end)
 
 -- Honor Guild Death
 
 local honorGuildDeathBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-honorGuildDeathBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
+honorGuildDeathBox:SetPoint("TOPLEFT", invitationsBox, "BOTTOMLEFT", 0, -16)
 honorGuildDeathBox:SetSize(420, 248)
 honorGuildDeathBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -761,9 +877,53 @@ local function UpdateTabardStalkerBoxHeight()
 	tabardStalkerBox:SetHeight(8 + 16 + 4 + hintH + 8 + 22 + 8 + 22 + 8 + 22 + 8 + 22 + 4 + 22 + 4 + statusH + 14)
 end
 
+-- Misc.
+
+local miscBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+miscBox:SetPoint("TOPLEFT", tabardStalkerBox, "BOTTOMLEFT", 0, -16)
+miscBox:SetSize(420, 56)
+miscBox:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true,
+	tileSize = 32,
+	edgeSize = 16,
+	insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+miscBox:SetBackdropColor(0, 0, 0, 0.5)
+
+local lblMiscSection = miscBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblMiscSection:SetPoint("TOPLEFT", miscBox, "TOPLEFT", 12, -8)
+lblMiscSection:SetText(L["Misc."])
+
+local chkTargetPlayerFromChat = CreateFrame("CheckButton", nil, miscBox, "OptionsBaseCheckButtonTemplate")
+chkTargetPlayerFromChat:SetPoint("TOPLEFT", lblMiscSection, "BOTTOMLEFT", 0, -8)
+
+local lblTargetPlayerFromChat = miscBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblTargetPlayerFromChat:SetPoint("LEFT", chkTargetPlayerFromChat, "RIGHT", 0, 1)
+lblTargetPlayerFromChat:SetText(L["Target player from chat"])
+
+local function RefreshMiscOptionsUI()
+	if AddonTable.IsChatTargetEnabled then
+		chkTargetPlayerFromChat:SetChecked(AddonTable.IsChatTargetEnabled())
+	end
+end
+
+chkTargetPlayerFromChat:SetScript("OnClick", function(frame)
+	if AddonTable.SetChatTargetEnabled then
+		AddonTable.SetChatTargetEnabled(frame:GetChecked() == true)
+	end
+end)
+
+local function UpdateMiscBoxHeight()
+	miscBox:SetHeight(8 + 16 + 4 + 22 + 14)
+end
+
 local function UpdateOptionsScrollHeight()
 	UpdateTabardStalkerBoxHeight()
-	local height = tooltipBox:GetHeight() + guildInviteBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + 48
+	UpdateInvitationsBoxHeight()
+	UpdateMiscBoxHeight()
+	local height = tooltipBox:GetHeight() + invitationsBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + miscBox:GetHeight() + 48
 	optionsScrollChild:SetHeight(height)
 end
 
@@ -865,14 +1025,26 @@ optionsScrollChild:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
+	RefreshMiscOptionsUI()
 end)
 GTIOFrame:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
+	RefreshMiscOptionsUI()
 end)
 UpdateOptionsScrollHeight()
 RefreshHonorGuildDeathUI()
+RefreshMiscOptionsUI()
+if AddonTable.RefreshInvitationsOptionsUI then
+	AddonTable.RefreshInvitationsOptionsUI()
+end
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)
