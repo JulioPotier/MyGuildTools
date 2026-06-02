@@ -22,6 +22,13 @@ local minimapLetterBgInner
 local minimapLetter
 local minimapDragActive = false
 local minimapDragMoved = false
+local minimapMenuFrame
+
+local MINIMAP_BLOCK_MENU_MODES = {
+	AddonTable.GROUP_INVITE_BLOCK_NONE,
+	AddonTable.GROUP_INVITE_BLOCK_COMBAT,
+	AddonTable.GROUP_INVITE_BLOCK_ALWAYS,
+}
 
 local BLOCK_MODE_LABELS = {
 	[AddonTable.GROUP_INVITE_BLOCK_NONE] = function()
@@ -57,10 +64,6 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
-	if MGTConfig.BlockGroupInvites == "ENABLED"
-		and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
-	end
 end
 
 local function TrimString(s)
@@ -73,12 +76,6 @@ local function TrimString(s)
 	return s:match("^%s*(.-)%s*$") or ""
 end
 
-local function NormalizeStoredKeyword()
-	if type(MGTGroupInviteBlockKeyword) ~= "string" then
-		MGTGroupInviteBlockKeyword = ""
-	end
-end
-
 local function NormalizeInviterName(name)
 	name = TrimString(name or "")
 	if name == "" then
@@ -88,23 +85,6 @@ local function NormalizeInviterName(name)
 		name = Ambiguate(name, "none") or name
 	end
 	return name:match("^([^%-]+)") or name
-end
-
-function AddonTable.GetGroupInviteBlockKeyword()
-	NormalizeStoredKeyword()
-	return TrimString(MGTGroupInviteBlockKeyword or "")
-end
-
-function AddonTable.SetGroupInviteBlockKeyword(keyword)
-	keyword = TrimString(keyword or "")
-	if #keyword > GROUP_INVITE_KEYWORD_MAX_STORED then
-		keyword = keyword:sub(1, GROUP_INVITE_KEYWORD_MAX_STORED)
-	end
-	MGTGroupInviteBlockKeyword = keyword
-	if type(MGTConfig) == "table" then
-		MGTConfig.GroupInviteBlockKeyword = keyword
-	end
-	AddonTable.RefreshGroupInviteBlocker()
 end
 
 function AddonTable.IsGroupInviteKeywordMode()
@@ -121,9 +101,6 @@ end
 function AddonTable.SetGroupInviteBlockActive(enabled)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	MGTConfig.BlockGroupInvites = enabled and "ENABLED" or "DISABLED"
-	if enabled and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
-	end
 	AddonTable.RefreshGroupInviteBlocker()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	if AddonTable.RefreshInvitationsOptionsUI then
@@ -144,6 +121,7 @@ function AddonTable.SetGroupInviteBlockMode(mode)
 		MGTConfig.BlockGroupInvites = "ENABLED"
 	end
 	AddonTable.UpdateGroupInviteMinimapIcon()
+	AddonTable.RefreshGroupInviteMinimapButton()
 	AddonTable.RefreshGroupInviteBlocker()
 	if AddonTable.RefreshInvitationsOptionsUI then
 		AddonTable.RefreshInvitationsOptionsUI()
@@ -192,6 +170,25 @@ local function MessageContainsKeyword(message, keyword)
 	return message:lower():find(keyword:lower(), 1, true) ~= nil
 end
 
+local function ShouldFilterAutoLayerWhispers()
+	if not AddonTable.IsGroupInviteBlockActive or not AddonTable.IsGroupInviteBlockActive() then
+		return false
+	end
+	local mode = AddonTable.GetGroupInviteBlockMode and AddonTable.GetGroupInviteBlockMode()
+	return mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS or mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
+end
+
+local function WhisperFilter_AutoLayer(_, _, message)
+	if not ShouldFilterAutoLayerWhispers() then
+		return false
+	end
+	if type(message) ~= "string" then
+		return false
+	end
+	-- Suppress AutoLayer whispers when blocking is enabled.
+	return message:sub(1, 11) == "[AutoLayer]"
+end
+
 local function HidePartyInvitePopups()
 	if StaticPopup_Hide then
 		StaticPopup_Hide("PARTY_INVITE")
@@ -219,11 +216,6 @@ local function ClearPendingInvite()
 end
 
 local function StartPendingInvite(inviterName)
-	local keyword = AddonTable.GetGroupInviteBlockKeyword()
-	if keyword == "" then
-		return
-	end
-
 	inviterName = NormalizeInviterName(inviterName)
 	if inviterName == "" then
 		return
@@ -233,7 +225,6 @@ local function StartPendingInvite(inviterName)
 	local generation = pendingInviteGeneration
 	pendingInvite = {
 		inviter = inviterName,
-		keyword = keyword,
 	}
 
 	if C_Timer and C_Timer.After then
@@ -261,22 +252,7 @@ local function OnPartyInviteRequest(inviterName)
 		return
 	end
 
-	if AddonTable.GetGroupInviteBlockKeyword() ~= "" then
-		StartPendingInvite(inviterName)
-		return
-	end
-
 	DeclinePartyInvite()
-end
-
-local function OnWhisperForBlock(message, sender)
-	if not pendingInvite or not AddonTable.IsGroupInviteBlockActive() then
-		return
-	end
-	if not MessageContainsKeyword(message, pendingInvite.keyword) then
-		return
-	end
-	TryDeclinePendingInvite(sender)
 end
 
 function AddonTable.RefreshGroupInviteBlocker()
@@ -285,15 +261,8 @@ function AddonTable.RefreshGroupInviteBlocker()
 	end
 	if AddonTable.IsGroupInviteBlockActive() then
 		blockFrame:RegisterEvent("PARTY_INVITE_REQUEST")
-		if AddonTable.GetGroupInviteBlockKeyword() ~= "" then
-			blockFrame:RegisterEvent("CHAT_MSG_WHISPER")
-		else
-			blockFrame:UnregisterEvent("CHAT_MSG_WHISPER")
-			ClearPendingInvite()
-		end
 	else
 		blockFrame:UnregisterEvent("PARTY_INVITE_REQUEST")
-		blockFrame:UnregisterEvent("CHAT_MSG_WHISPER")
 		ClearPendingInvite()
 	end
 end
@@ -350,6 +319,7 @@ function AddonTable.RefreshGroupInviteMinimapButton()
 	if not minimapButton then
 		return
 	end
+	-- Visible only when group invite blocking and the minimap shortcut are both enabled.
 	local show = AddonTable.IsGroupInviteBlockActive() and AddonTable.IsMinimapBlockButtonEnabled()
 	if show then
 		UpdateMinimapPosition()
@@ -360,12 +330,49 @@ function AddonTable.RefreshGroupInviteMinimapButton()
 	end
 end
 
+local function OnMinimapBlockMenuClick(_, mode)
+	AddonTable.SetGroupInviteBlockMode(mode)
+	if CloseDropDownMenus then
+		CloseDropDownMenus()
+	end
+end
+
+local function InitMinimapBlockMenu(_, level)
+	local current = AddonTable.GetGroupInviteBlockMode()
+
+	-- Fresh info per row: AddButton sets info.disabled on titles and mutates the table.
+	local titleInfo = UIDropDownMenu_CreateInfo()
+	titleInfo.isTitle = true
+	titleInfo.text = L["Group invite block mode:"]
+	titleInfo.notCheckable = true
+	UIDropDownMenu_AddButton(titleInfo)
+
+	for _, mode in ipairs(MINIMAP_BLOCK_MENU_MODES) do
+		local info = UIDropDownMenu_CreateInfo()
+		info.text = AddonTable.GetGroupInviteBlockModeLabel(mode)
+		info.arg1 = mode
+		info.checked = (mode == current)
+		info.func = OnMinimapBlockMenuClick
+		UIDropDownMenu_AddButton(info)
+	end
+end
+
+local function ToggleMinimapBlockMenu()
+	if not minimapButton then
+		return
+	end
+	if not minimapMenuFrame then
+		minimapMenuFrame = CreateFrame("Frame", "MGTMinimapBlockMenu", UIParent, "UIDropDownMenuTemplate")
+	end
+	UIDropDownMenu_Initialize(minimapMenuFrame, InitMinimapBlockMenu, "MENU")
+	-- Classic: ToggleDropDownMenu(level, value, dropDownFrame, anchor, x, y)
+	ToggleDropDownMenu(1, nil, minimapMenuFrame, minimapButton, 0, 0)
+end
+
 local function ShowMinimapTooltip()
 	GameTooltip:SetOwner(minimapButton, "ANCHOR_LEFT")
-	GameTooltip:AddLine(L["Left-click to drag"], 0.7, 0.7, 0.7)
-	GameTooltip:AddLine(L["Left-click: Always Blocked"], 1, 0.82, 0)
-	GameTooltip:AddLine(L["Middle-click: Blocked during combat"], 1, 0.82, 0)
-	GameTooltip:AddLine(L["Right-click: Not blocked"], 1, 0.82, 0)
+	GameTooltip:AddLine(L["Minimap block menu click"], 1, 0.82, 0)
+	GameTooltip:AddLine(L["Minimap block menu drag"], 0.7, 0.7, 0.7)
 	GameTooltip:Show()
 end
 
@@ -378,7 +385,7 @@ local function CreateMinimapButton()
 	minimapButton:SetSize(32, 32)
 	minimapButton:SetFrameStrata("MEDIUM")
 	minimapButton:SetFrameLevel(8)
-	minimapButton:RegisterForClicks("LeftButtonUp", "MiddleButtonUp", "RightButtonUp")
+	minimapButton:RegisterForClicks("LeftButtonUp")
 
 	minimapIcon = minimapButton:CreateTexture(nil, "BACKGROUND")
 	minimapIcon:SetSize(24, 24)
@@ -443,19 +450,10 @@ local function CreateMinimapButton()
 	end)
 
 	minimapButton:SetScript("OnClick", function(_, mouseButton)
-		if not AddonTable.IsGroupInviteBlockActive() then
+		if mouseButton ~= "LeftButton" or minimapDragMoved then
 			return
 		end
-		if mouseButton == "LeftButton" then
-			if minimapDragMoved then
-				return
-			end
-			AddonTable.SetGroupInviteBlockMode(AddonTable.GROUP_INVITE_BLOCK_ALWAYS)
-		elseif mouseButton == "MiddleButton" then
-			AddonTable.SetGroupInviteBlockMode(AddonTable.GROUP_INVITE_BLOCK_COMBAT)
-		elseif mouseButton == "RightButton" then
-			AddonTable.SetGroupInviteBlockMode(AddonTable.GROUP_INVITE_BLOCK_NONE)
-		end
+		ToggleMinimapBlockMenu()
 	end)
 
 	minimapButton:SetScript("OnEnter", ShowMinimapTooltip)
@@ -475,14 +473,14 @@ blockFrame:SetScript("OnEvent", function(_, event, arg1, ...)
 	end
 	if event == "ADDON_LOADED" or event == "PLAYER_LOGIN" then
 		AddonTable.EnsureMGTGroupInviteConfig()
+		if ChatFrame_AddMessageEventFilter then
+			ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", WhisperFilter_AutoLayer)
+		end
 		CreateMinimapButton()
 		AddonTable.RefreshGroupInviteBlocker()
 		AddonTable.RefreshGroupInviteMinimapButton()
 	elseif event == "PARTY_INVITE_REQUEST" then
 		OnPartyInviteRequest(...)
-	elseif event == "CHAT_MSG_WHISPER" then
-		local message, sender = ...
-		OnWhisperForBlock(message, sender)
 	end
 end)
 

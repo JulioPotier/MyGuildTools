@@ -429,160 +429,17 @@ groupBlockDropdownInit:SetScript("OnEvent", function(self, event, addon)
 	end
 end)
 
--- Classic EditBox default is 10 letters unless SetMaxLetters(0) is reapplied after Enable/Show/Focus.
-local GROUP_INVITE_KEYWORD_MAX_LETTERS = 0
-
-local function ApplyGroupInviteKeywordEditLimits(editBox)
-	if not editBox then
-		return
-	end
-	editBox:SetMaxLetters(GROUP_INVITE_KEYWORD_MAX_LETTERS)
-	editBox:EnableMouse(true)
-end
-
-local lblGroupInviteBlockKeyword = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
-lblGroupInviteBlockKeyword:SetPoint("TOPLEFT", ddGroupBlockMode, "BOTTOMLEFT", 16, -8)
-lblGroupInviteBlockKeyword:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
-lblGroupInviteBlockKeyword:SetJustifyH("LEFT")
-lblGroupInviteBlockKeyword:SetText(L["Whisper keyword to block:"])
-
-local editGroupInviteBlockKeywordBg = CreateFrame("Frame", nil, invitationsBox, "BackdropTemplate")
-editGroupInviteBlockKeywordBg:SetPoint("TOPLEFT", lblGroupInviteBlockKeyword, "BOTTOMLEFT", -4, 4)
-editGroupInviteBlockKeywordBg:SetSize(388, 24)
-editGroupInviteBlockKeywordBg:SetBackdrop({
-	bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-	tile = true,
-	tileSize = 16,
-	edgeSize = 12,
-	insets = { left = 3, right = 3, top = 3, bottom = 3 },
-})
-editGroupInviteBlockKeywordBg:SetBackdropColor(0, 0, 0, 0.35)
-
-local editGroupInviteBlockKeyword = CreateFrame("EditBox", nil, editGroupInviteBlockKeywordBg)
-editGroupInviteBlockKeyword:SetPoint("TOPLEFT", editGroupInviteBlockKeywordBg, "TOPLEFT", 6, -4)
-editGroupInviteBlockKeyword:SetPoint("BOTTOMRIGHT", editGroupInviteBlockKeywordBg, "BOTTOMRIGHT", -6, 4)
-editGroupInviteBlockKeyword:SetFontObject(ChatFontNormal)
-editGroupInviteBlockKeyword:SetAutoFocus(false)
-editGroupInviteBlockKeyword:EnableMouse(true)
-ApplyGroupInviteKeywordEditLimits(editGroupInviteBlockKeyword)
-
-local lblGroupInviteBlockKeywordHint = invitationsBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblGroupInviteBlockKeywordHint:SetPoint("TOPLEFT", editGroupInviteBlockKeywordBg, "BOTTOMLEFT", 0, -4)
-lblGroupInviteBlockKeywordHint:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
-lblGroupInviteBlockKeywordHint:SetJustifyH("LEFT")
-lblGroupInviteBlockKeywordHint:SetSpacing(2)
-lblGroupInviteBlockKeywordHint:SetText(L["Whisper keyword hint"])
-
-local keywordEditSuppressSave = false
-
-local function ReadGroupInviteKeywordEditText()
-	if not editGroupInviteBlockKeyword then
-		return ""
-	end
-	local wasDisabled = not editGroupInviteBlockKeyword:IsEnabled()
-	if wasDisabled then
-		editGroupInviteBlockKeyword:Enable()
-	end
-	local text = editGroupInviteBlockKeyword:GetText() or ""
-	if wasDisabled then
-		editGroupInviteBlockKeyword:Disable()
-	end
-	return text
-end
-
-local function SetGroupInviteKeywordEditText(text)
-	if not editGroupInviteBlockKeyword then
-		return
-	end
-	keywordEditSuppressSave = true
-	editGroupInviteBlockKeyword:SetText(text or "")
-	keywordEditSuppressSave = false
-end
-
-local function SaveGroupInviteBlockKeywordFromUI()
-	if keywordEditSuppressSave or not editGroupInviteBlockKeyword or not AddonTable.SetGroupInviteBlockKeyword then
-		return
-	end
-	if not editGroupInviteBlockKeyword:IsShown() then
-		return
-	end
-	AddonTable.SetGroupInviteBlockKeyword(ReadGroupInviteKeywordEditText())
-	AddonTable.RefreshGroupInviteBlocker()
-end
-
-AddonTable.SaveGroupInviteBlockKeywordFromUI = SaveGroupInviteBlockKeywordFromUI
-
-editGroupInviteBlockKeyword:SetScript("OnShow", function(self)
-	ApplyGroupInviteKeywordEditLimits(self)
-	if AddonTable.GetGroupInviteBlockKeyword then
-		SetGroupInviteKeywordEditText(AddonTable.GetGroupInviteBlockKeyword())
-	else
-		SetGroupInviteKeywordEditText("")
-	end
-end)
-
-editGroupInviteBlockKeyword:SetScript("OnEnterPressed", function(self)
-	SaveGroupInviteBlockKeywordFromUI()
-	self:ClearFocus()
-end)
-
-editGroupInviteBlockKeyword:SetScript("OnEditFocusGained", function(self)
-	ApplyGroupInviteKeywordEditLimits(self)
-end)
-
-editGroupInviteBlockKeyword:SetScript("OnTextChanged", function()
-	if keywordEditSuppressSave then
-		return
-	end
-	SaveGroupInviteBlockKeywordFromUI()
-end)
-
-editGroupInviteBlockKeyword:SetScript("OnChar", function()
-	if keywordEditSuppressSave then
-		return
-	end
-	SaveGroupInviteBlockKeywordFromUI()
-end)
-
-editGroupInviteBlockKeyword:SetScript("OnEditFocusLost", function(self)
-	SaveGroupInviteBlockKeywordFromUI()
-end)
-
 local function UpdateInvitationsBoxHeight()
 	local hintH = math.max(guildInviteOpts.hint:GetStringHeight() or 0, 14)
 	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8 + 22 + 14
 	if AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive() then
 		h = h + 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
-		if AddonTable.IsGroupInviteKeywordMode and AddonTable.IsGroupInviteKeywordMode() then
-			local kwHintH = math.max(lblGroupInviteBlockKeywordHint:GetStringHeight() or 0, 14)
-			h = h + 14 + 8 + 24 + 4 + kwHintH + 8
-		end
 	end
 	invitationsBox:SetHeight(h)
 end
 
-local function SetInviteKeywordControlsEnabled(enabled)
-	local alpha = enabled and 1 or 0.45
-	lblGroupInviteBlockKeyword:SetAlpha(alpha)
-	editGroupInviteBlockKeywordBg:SetAlpha(alpha)
-	editGroupInviteBlockKeyword:SetAlpha(alpha)
-	lblGroupInviteBlockKeywordHint:SetAlpha(alpha)
-	if enabled then
-		editGroupInviteBlockKeyword:Enable()
-		ApplyGroupInviteKeywordEditLimits(editGroupInviteBlockKeyword)
-	else
-		editGroupInviteBlockKeyword:ClearFocus()
-		editGroupInviteBlockKeyword:EnableMouse(false)
-		editGroupInviteBlockKeyword:Disable()
-	end
-end
-
 local function RefreshInvitationsBlockControls()
 	local blockActive = AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive()
-	local keywordMode = blockActive
-		and AddonTable.IsGroupInviteKeywordMode
-		and AddonTable.IsGroupInviteKeywordMode()
 
 	if blockActive then
 		chkMinimapBlockButton:Show()
@@ -596,30 +453,10 @@ local function RefreshInvitationsBlockControls()
 		ddGroupBlockMode:Hide()
 	end
 
-	if keywordMode then
-		lblGroupInviteBlockKeyword:Show()
-		editGroupInviteBlockKeywordBg:Show()
-		editGroupInviteBlockKeyword:Show()
-		lblGroupInviteBlockKeywordHint:Show()
-		SetInviteKeywordControlsEnabled(true)
-		ApplyGroupInviteKeywordEditLimits(editGroupInviteBlockKeyword)
-		if not editGroupInviteBlockKeyword:HasFocus() and AddonTable.GetGroupInviteBlockKeyword then
-			SetGroupInviteKeywordEditText(AddonTable.GetGroupInviteBlockKeyword())
-			ApplyGroupInviteKeywordEditLimits(editGroupInviteBlockKeyword)
-		end
-	else
-		lblGroupInviteBlockKeyword:Hide()
-		editGroupInviteBlockKeywordBg:Hide()
-		editGroupInviteBlockKeyword:Hide()
-		lblGroupInviteBlockKeywordHint:Hide()
-		SetInviteKeywordControlsEnabled(false)
-	end
-
 	UpdateInvitationsBoxHeight()
 end
 
 function ddGroupBlockMode:SetValue(newMode)
-	SaveGroupInviteBlockKeywordFromUI()
 	if AddonTable.SetGroupInviteBlockMode then
 		AddonTable.SetGroupInviteBlockMode(newMode)
 	end
@@ -637,17 +474,12 @@ function AddonTable.RefreshInvitationsOptionsUI()
 	end
 	RefreshGroupBlockModeDropdown()
 	RefreshInvitationsBlockControls()
-	if editGroupInviteBlockKeyword and AddonTable.GetGroupInviteBlockKeyword and not editGroupInviteBlockKeyword:HasFocus() then
-		SetGroupInviteKeywordEditText(AddonTable.GetGroupInviteBlockKeyword())
-		ApplyGroupInviteKeywordEditLimits(editGroupInviteBlockKeyword)
-	end
 	if UpdateOptionsScrollHeight then
 		UpdateOptionsScrollHeight()
 	end
 end
 
 chkBlockGroupInvites:SetScript("OnClick", function(frame)
-	SaveGroupInviteBlockKeywordFromUI()
 	if not AddonTable.SetGroupInviteBlockActive then
 		return
 	end
