@@ -57,6 +57,8 @@ L["Honor death parse failed"] = "Could not parse that death message."
 L["Honor death test output"] = "Honor output:"
 L["Honor death test usage"] = 'Usage: /mgt test "[Name] has been slain by ... in Zone! They were level N"'
 L["Honor death race pending"] = "Race unknown yet (reload roster or run test again after a moment)."
+L["Whisper keyword hint"] =
+	"If empty, decline all group invites per the mode above. If set, decline only after the inviter whispers this word (case-insensitive) within 15 seconds."
 
 -- English: keys are used as labels (metatable fallback).
 -- French:
@@ -79,6 +81,8 @@ if GetLocale() == "frFR" then
 	L["Not blocked"] = "Non bloqué"
 	L["Only blocked during combat"] = "Bloqué en combat seulement"
 	L["Always blocked"] = "Toujours bloqué"
+	L["Whisper keyword to block:"] = "Mot-clé en chuchotement pour bloquer :"
+	L["Whisper keyword hint"] = "Si vide : refuser toutes les invitations selon le mode ci-dessus. Si renseigné : refuser seulement après un chuchotement contenant ce mot (insensible à la casse), dans les 15 secondes."
 	L["Left-click to drag"] = "Maintenir le clic gauche pour déplacer"
 	L["Left-click: Always Blocked"] = "Clic gauche : Toujours bloqué"
 	L["Middle-click: Blocked during combat"] = "Clic milieu : Bloqué en combat"

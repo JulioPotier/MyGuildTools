@@ -33,7 +33,9 @@ local function NormalizeTargetName(name)
 end
 
 function AddonTable.EnsureMGTChatTargetConfig()
-	MGTConfig = MGTConfig or {}
+	if type(MGTConfig) ~= "table" then
+		MGTConfig = {}
+	end
 	if MGTConfig.TargetPlayerFromChat == nil then
 		MGTConfig.TargetPlayerFromChat = "DISABLED"
 	end
@@ -108,7 +110,7 @@ local function HideTargetPopup()
 	end
 end
 
-local function ShowTargetPopup(playerName, anchorFrame)
+local function ShowTargetPopup(playerName)
 	playerName = NormalizeTargetName(playerName)
 	if playerName == "" or not targetButton or not popup then
 		return
@@ -135,15 +137,8 @@ local function ShowTargetPopup(playerName, anchorFrame)
 	popup:SetWidth(targetButton:GetWidth() + 16)
 	popup:SetHeight(36)
 
-	popup:ClearAllPoints()
-	popup:SetFrameStrata("FULLSCREEN_DIALOG")
-	if anchorFrame and anchorFrame.GetCenter then
-		popup:SetFrameLevel((anchorFrame.GetFrameLevel and anchorFrame:GetFrameLevel() or 0) + 20)
-		popup:SetPoint("CENTER", anchorFrame, "CENTER", 0, 0)
-	else
-		local x, y = GetCursorPosition()
-		local scale = UIParent:GetEffectiveScale()
-		popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
+	if AddonTable.PlacePopupNearCursor then
+		AddonTable.PlacePopupNearCursor(popup)
 	end
 
 	dismissFrame:Show()
@@ -165,17 +160,17 @@ local function TargetPlayerFromChat(playerName, contextData, ownerRegion)
 		end
 	end
 
-	ShowTargetPopup(playerName, ownerRegion)
+	ShowTargetPopup(playerName)
 end
 
-local function AppendTargetMenuEntry(rootDescription, playerName, contextData, ownerRegion)
+local function AppendTargetMenuEntry(rootDescription, playerName, contextData)
 	if not playerName or playerName == "" then
 		return
 	end
 
 	rootDescription:CreateDivider()
 	rootDescription:CreateButton("/target", function()
-		TargetPlayerFromChat(playerName, contextData, ownerRegion)
+		TargetPlayerFromChat(playerName, contextData)
 	end)
 end
 
@@ -202,7 +197,7 @@ local function RegisterChatTargetMenu(menuType, requireChatContext)
 			return
 		end
 
-		AppendTargetMenuEntry(rootDescription, playerName, contextData, ownerRegion)
+		AppendTargetMenuEntry(rootDescription, playerName, contextData)
 	end)
 end
 

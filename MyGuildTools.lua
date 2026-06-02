@@ -36,6 +36,35 @@ local GTWelcome = CreateFrame("Frame")
 GTWelcome:RegisterEvent("ADDON_LOADED")
 GTWelcome:RegisterEvent("PLAYER_TARGET_CHANGED")
 
+local MGT_CONFIG_DEFAULTS = {
+	["Colour"] = "ENABLED",
+	["HealthBar"] = "ENABLED",
+	["TooltipFormat"] = "%GUILD% %RANK%",
+	["FontSize"] = "14",
+	["GuildNotes"] = "DISABLED",
+	["TabardStalkerGuildOnly"] = "ENABLED",
+	["TabardStalkerMinLevel"] = "40",
+	["TabardStalkerAutoScan"] = "DISABLED",
+	["HonorGuildDeathAuto"] = "DISABLED",
+	["HonorGuildDeathFormat"] = "F",
+	["HonorDeathRosterCache"] = {},
+	["HonorDeathPlayerCache"] = {},
+	["BlockGroupInvites"] = "DISABLED",
+	["GroupInviteBlockMode"] = "NONE",
+	["GroupInviteBlockKeyword"] = "",
+	["MinimapBlockButton"] = "DISABLED",
+	["MinimapBlockAngle"] = 225,
+	["TargetPlayerFromChat"] = "DISABLED",
+}
+
+local function MGTApplyConfigDefaults()
+	for key, value in pairs(MGT_CONFIG_DEFAULTS) do
+		if MGTConfig[key] == nil then
+			MGTConfig[key] = value
+		end
+	end
+end
+
 local function GTEventHandler(self, event, arg1)
 
 if event == "ADDON_LOADED" and arg1 == AddonName then
@@ -43,27 +72,10 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 		MGTConfig = GTConfig
 		GTConfig = nil
 	end
-	if MGTConfig == nil or MGTConfig == "" then
-		MGTConfig = {
-			["Colour"] = "ENABLED",
-			["HealthBar"] = "ENABLED",
-			["TooltipFormat"] = "%GUILD% %RANK%",
-			["FontSize"] = "14",
-			["GuildNotes"] = "DISABLED",
-			["TabardStalkerGuildOnly"] = "ENABLED",
-			["TabardStalkerMinLevel"] = "40",
-			["TabardStalkerAutoScan"] = "DISABLED",
-			["HonorGuildDeathAuto"] = "DISABLED",
-			["HonorGuildDeathFormat"] = "F",
-			["HonorDeathRosterCache"] = {},
-			["HonorDeathPlayerCache"] = {},
-			["BlockGroupInvites"] = "DISABLED",
-			["GroupInviteBlockMode"] = "NONE",
-			["MinimapBlockButton"] = "DISABLED",
-			["MinimapBlockAngle"] = 225,
-			["TargetPlayerFromChat"] = "DISABLED",
-		}
+	if MGTConfig == nil or MGTConfig == "" or type(MGTConfig) ~= "table" then
+		MGTConfig = {}
 	end
+	MGTApplyConfigDefaults()
 	
 	if MGTConfig.HealthBar == nil then MGTConfig.HealthBar = 'ENABLED' end
 	if MGTConfig.FontSize == nil or MGTConfig.FontSize == "" then MGTConfig.FontSize = '14' end
@@ -84,6 +96,16 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 	end
 	if AddonTable.EnsureMGTGroupInviteConfig then
 		AddonTable.EnsureMGTGroupInviteConfig()
+	end
+	if type(MGTGroupInviteBlockKeyword) ~= "string" then
+		if type(MGTConfig.GroupInviteBlockKeyword) == "string" then
+			MGTGroupInviteBlockKeyword = MGTConfig.GroupInviteBlockKeyword
+		else
+			MGTGroupInviteBlockKeyword = ""
+		end
+	end
+	if MGTConfig.GroupInviteBlockKeyword == nil then
+		MGTConfig.GroupInviteBlockKeyword = MGTGroupInviteBlockKeyword
 	end
 	if AddonTable.EnsureMGTChatTargetConfig then
 		AddonTable.EnsureMGTChatTargetConfig()

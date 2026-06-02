@@ -434,6 +434,17 @@ end
 
 AddonTable.ResolveUnitFromPlayerName = ResolveUnitFromPlayerName
 
+function AddonTable.PlacePopupNearCursor(popup)
+	if not popup then
+		return
+	end
+	popup:ClearAllPoints()
+	popup:SetFrameStrata("FULLSCREEN_DIALOG")
+	local x, y = GetCursorPosition()
+	local scale = UIParent:GetEffectiveScale()
+	popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
+end
+
 local function HideGinviteButton()
 	if popup then
 		popup:Hide()
@@ -474,16 +485,7 @@ function AddonTable.ShowGinviteButton(playerName, anchorFrame)
 	popup:SetWidth(inviteButton:GetWidth() + 16)
 	popup:SetHeight(36)
 
-	popup:ClearAllPoints()
-	popup:SetFrameStrata("FULLSCREEN_DIALOG")
-	if anchorFrame and anchorFrame.GetCenter then
-		popup:SetFrameLevel((anchorFrame.GetFrameLevel and anchorFrame:GetFrameLevel() or 0) + 20)
-		popup:SetPoint("CENTER", anchorFrame, "CENTER", 0, 0)
-	else
-		local x, y = GetCursorPosition()
-		local scale = UIParent:GetEffectiveScale()
-		popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
-	end
+	AddonTable.PlacePopupNearCursor(popup)
 
 	dismissFrame:Show()
 	popup:Show()

@@ -9,8 +9,12 @@ local BLOCK_ICON = "Interface\\Icons\\INV_Misc_Banner_01"
 local MINIMAP_ANGLE = 225
 local MINIMAP_RADIUS = 80
 local MINIMAP_DRAG_THRESHOLD = 4
+local WHISPER_KEYWORD_WAIT_SECONDS = 1
+local GROUP_INVITE_KEYWORD_MAX_STORED = 128
 
 local blockFrame
+local pendingInvite
+local pendingInviteGeneration = 0
 local minimapButton
 local minimapIcon
 local minimapLetterBgOuter
@@ -53,6 +57,60 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
+	if MGTConfig.BlockGroupInvites == "ENABLED"
+		and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	end
+end
+
+local function TrimString(s)
+	if type(s) ~= "string" then
+		return ""
+	end
+	if strtrim then
+		return strtrim(s)
+	end
+	return s:match("^%s*(.-)%s*$") or ""
+end
+
+local function NormalizeStoredKeyword()
+	if type(MGTGroupInviteBlockKeyword) ~= "string" then
+		MGTGroupInviteBlockKeyword = ""
+	end
+end
+
+local function NormalizeInviterName(name)
+	name = TrimString(name or "")
+	if name == "" then
+		return ""
+	end
+	if Ambiguate then
+		name = Ambiguate(name, "none") or name
+	end
+	return name:match("^([^%-]+)") or name
+end
+
+function AddonTable.GetGroupInviteBlockKeyword()
+	NormalizeStoredKeyword()
+	return TrimString(MGTGroupInviteBlockKeyword or "")
+end
+
+function AddonTable.SetGroupInviteBlockKeyword(keyword)
+	keyword = TrimString(keyword or "")
+	if #keyword > GROUP_INVITE_KEYWORD_MAX_STORED then
+		keyword = keyword:sub(1, GROUP_INVITE_KEYWORD_MAX_STORED)
+	end
+	MGTGroupInviteBlockKeyword = keyword
+	if type(MGTConfig) == "table" then
+		MGTConfig.GroupInviteBlockKeyword = keyword
+	end
+	AddonTable.RefreshGroupInviteBlocker()
+end
+
+function AddonTable.IsGroupInviteKeywordMode()
+	local mode = AddonTable.GetGroupInviteBlockMode()
+	return mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
+		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS
 end
 
 function AddonTable.IsGroupInviteBlockActive()
@@ -63,6 +121,9 @@ end
 function AddonTable.SetGroupInviteBlockActive(enabled)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	MGTConfig.BlockGroupInvites = enabled and "ENABLED" or "DISABLED"
+	if enabled and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	end
 	AddonTable.RefreshGroupInviteBlocker()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	if AddonTable.RefreshInvitationsOptionsUI then
@@ -77,8 +138,13 @@ end
 
 function AddonTable.SetGroupInviteBlockMode(mode)
 	AddonTable.EnsureMGTGroupInviteConfig()
-	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(mode)
+	mode = NormalizeBlockMode(mode)
+	MGTConfig.GroupInviteBlockMode = mode
+	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
+		MGTConfig.BlockGroupInvites = "ENABLED"
+	end
 	AddonTable.UpdateGroupInviteMinimapIcon()
+	AddonTable.RefreshGroupInviteBlocker()
 	if AddonTable.RefreshInvitationsOptionsUI then
 		AddonTable.RefreshInvitationsOptionsUI()
 	end
@@ -104,6 +170,7 @@ function AddonTable.GetGroupInviteBlockModeLabel(mode)
 	return fn and fn() or L["Not blocked"]
 end
 
+-- Same logic as v0.4.0 (before whisper keyword): checkbox on + mode decides blocking.
 local function ShouldDeclinePartyInvite()
 	if not AddonTable.IsGroupInviteBlockActive() then
 		return false
@@ -118,6 +185,13 @@ local function ShouldDeclinePartyInvite()
 	return false
 end
 
+local function MessageContainsKeyword(message, keyword)
+	if not message or keyword == "" then
+		return false
+	end
+	return message:lower():find(keyword:lower(), 1, true) ~= nil
+end
+
 local function HidePartyInvitePopups()
 	if StaticPopup_Hide then
 		StaticPopup_Hide("PARTY_INVITE")
@@ -128,6 +202,7 @@ local function HidePartyInvitePopups()
 	end
 end
 
+-- DeclineGroup must run during PARTY_INVITE_REQUEST (not next frame). Popup hide can wait.
 local function DeclinePartyInvite()
 	if DeclineGroup then
 		DeclineGroup()
@@ -139,11 +214,69 @@ local function DeclinePartyInvite()
 	end
 end
 
-local function OnPartyInviteRequest()
-	if not ShouldDeclinePartyInvite() then
+local function ClearPendingInvite()
+	pendingInvite = nil
+end
+
+local function StartPendingInvite(inviterName)
+	local keyword = AddonTable.GetGroupInviteBlockKeyword()
+	if keyword == "" then
+		return
+	end
+
+	inviterName = NormalizeInviterName(inviterName)
+	if inviterName == "" then
+		return
+	end
+
+	pendingInviteGeneration = pendingInviteGeneration + 1
+	local generation = pendingInviteGeneration
+	pendingInvite = {
+		inviter = inviterName,
+		keyword = keyword,
+	}
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(WHISPER_KEYWORD_WAIT_SECONDS, function()
+			if pendingInvite and pendingInviteGeneration == generation then
+				ClearPendingInvite()
+			end
+		end)
+	end
+end
+
+local function TryDeclinePendingInvite(inviterName)
+	if not pendingInvite or not ShouldDeclinePartyInvite() then
+		return
+	end
+	if NormalizeInviterName(inviterName) ~= pendingInvite.inviter then
 		return
 	end
 	DeclinePartyInvite()
+	ClearPendingInvite()
+end
+
+local function OnPartyInviteRequest(inviterName)
+	if not ShouldDeclinePartyInvite() then
+		return
+	end
+
+	if AddonTable.GetGroupInviteBlockKeyword() ~= "" then
+		StartPendingInvite(inviterName)
+		return
+	end
+
+	DeclinePartyInvite()
+end
+
+local function OnWhisperForBlock(message, sender)
+	if not pendingInvite or not AddonTable.IsGroupInviteBlockActive() then
+		return
+	end
+	if not MessageContainsKeyword(message, pendingInvite.keyword) then
+		return
+	end
+	TryDeclinePendingInvite(sender)
 end
 
 function AddonTable.RefreshGroupInviteBlocker()
@@ -152,8 +285,16 @@ function AddonTable.RefreshGroupInviteBlocker()
 	end
 	if AddonTable.IsGroupInviteBlockActive() then
 		blockFrame:RegisterEvent("PARTY_INVITE_REQUEST")
+		if AddonTable.GetGroupInviteBlockKeyword() ~= "" then
+			blockFrame:RegisterEvent("CHAT_MSG_WHISPER")
+		else
+			blockFrame:UnregisterEvent("CHAT_MSG_WHISPER")
+			ClearPendingInvite()
+		end
 	else
 		blockFrame:UnregisterEvent("PARTY_INVITE_REQUEST")
+		blockFrame:UnregisterEvent("CHAT_MSG_WHISPER")
+		ClearPendingInvite()
 	end
 end
 
@@ -339,6 +480,9 @@ blockFrame:SetScript("OnEvent", function(_, event, arg1, ...)
 		AddonTable.RefreshGroupInviteMinimapButton()
 	elseif event == "PARTY_INVITE_REQUEST" then
 		OnPartyInviteRequest(...)
+	elseif event == "CHAT_MSG_WHISPER" then
+		local message, sender = ...
+		OnWhisperForBlock(message, sender)
 	end
 end)
 

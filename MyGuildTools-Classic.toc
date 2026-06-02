@@ -1,7 +1,7 @@
 ##Interface: 11508
 ##Author: Kirby2112
 ##Version: 0.2.0
-##SavedVariables: MGTConfig, MGTTabardHasCache
+##SavedVariables: MGTConfig, MGTTabardHasCache, MGTGroupInviteBlockKeyword
 ##SavedVariablesPerCharacter: MGTCharConfig
 ##Title: |cFF0088FFMyGuildTools|r
 ##Title-frFR: |cFF0088FFOutils de guilde|r
