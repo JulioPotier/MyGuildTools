@@ -55,6 +55,7 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["TabardStalkerMinLevel"] = "40",
 			["TabardStalkerAutoScan"] = "DISABLED",
 			["HonorGuildDeathAuto"] = "DISABLED",
+			["HonorGuildDeathDebug"] = "DISABLED",
 			["HonorGuildDeathFormat"] = "F",
 			["HonorDeathRosterCache"] = {},
 			["HonorDeathPlayerCache"] = {},
@@ -80,6 +81,7 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 	if MGTConfig.TabardStalkerMinLevel == nil then MGTConfig.TabardStalkerMinLevel = '40' end
 	if MGTConfig.TabardStalkerAutoScan == nil then MGTConfig.TabardStalkerAutoScan = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathAuto == nil then MGTConfig.HonorGuildDeathAuto = 'DISABLED' end
+	if MGTConfig.HonorGuildDeathDebug == nil then MGTConfig.HonorGuildDeathDebug = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathFormat == nil then MGTConfig.HonorGuildDeathFormat = 'F' end
 	if MGTConfig.HonorDeathRosterCache == nil then MGTConfig.HonorDeathRosterCache = {} end
 	if MGTConfig.HonorDeathPlayerCache == nil then MGTConfig.HonorDeathPlayerCache = {} end

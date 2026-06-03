@@ -57,6 +57,10 @@ L["Honor death parse failed"] = "Could not parse that death message."
 L["Honor death test output"] = "Honor output:"
 L["Honor death test usage"] = 'Usage: /mgt test "[Name] has been slain by ... in Zone! They were level N"'
 L["Honor death race pending"] = "Race unknown yet (reload roster or run test again after a moment)."
+L["Debug (HardcoreDeathsDebug + print)"] = "Debug (HardcoreDeathsDebug + print)"
+L["HardcoreDeathsDebug channel joined (print mode)"] = "HardcoreDeathsDebug channel: joined (print mode)."
+L["Join HardcoreDeathsDebug channel"] = "HardcoreDeathsDebug channel: not joined. Join it in the Channels list or relog with debug enabled."
+L["Honor death debug channel (guild not required for parse logs)"] = "Debug mode: listening on HardcoreDeathsDebug (parse logs in chat)."
 
 -- English: keys are used as labels (metatable fallback).
 -- French:
@@ -125,4 +129,8 @@ if GetLocale() == "frFR" then
 	L["Honor death test output"] = "Message d'hommage :"
 	L["Honor death test usage"] = 'Utilisation : /mgt test "[Nom] has been slain by ... in Zone ! They were level N"'
 	L["Honor death race pending"] = "Race inconnue pour l'instant (attendez le registre de guilde ou relancez le test)."
+	L["Debug (HardcoreDeathsDebug + print)"] = "Debug (HardcoreDeathsDebug + print)"
+	L["HardcoreDeathsDebug channel joined (print mode)"] = "Canal HardcoreDeathsDebug : rejoint (mode print)."
+	L["Join HardcoreDeathsDebug channel"] = "Canal HardcoreDeathsDebug : non rejoint. Rejoignez-le dans la liste des canaux ou reconnectez avec le debug activé."
+	L["Honor death debug channel (guild not required for parse logs)"] = "Mode debug : écoute sur HardcoreDeathsDebug (logs de parse dans le chat)."
 end

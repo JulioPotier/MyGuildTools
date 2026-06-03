@@ -430,7 +430,7 @@ end)
 
 local honorGuildDeathBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
 honorGuildDeathBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
-honorGuildDeathBox:SetSize(420, 248)
+honorGuildDeathBox:SetSize(420, 272)
 honorGuildDeathBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -478,8 +478,44 @@ local chkHonorGuildDeathAutoText = honorGuildDeathBox:CreateFontString(nil, nil,
 chkHonorGuildDeathAutoText:SetPoint("LEFT", chkHonorGuildDeathAuto, "RIGHT", 0, 1)
 chkHonorGuildDeathAutoText:SetText(L["Automatically honor fallen heroes"])
 
+local chkHonorGuildDeathDebug = CreateFrame("CheckButton", nil, honorGuildDeathBox, "OptionsBaseCheckButtonTemplate")
+chkHonorGuildDeathDebug:SetPoint("TOPLEFT", chkHonorGuildDeathAuto, "BOTTOMLEFT", 0, -8)
+
+chkHonorGuildDeathDebug:SetScript("OnUpdate", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if MGTConfig.HonorGuildDeathDebug == "ENABLED" then
+		frame:SetChecked(true)
+	elseif MGTConfig.HonorGuildDeathDebug == "DISABLED" then
+		frame:SetChecked(false)
+	end
+end)
+
+chkHonorGuildDeathDebug:SetScript("OnClick", function(frame)
+	if not MGTConfig then
+		return
+	end
+	if frame:GetChecked() then
+		MGTConfig.HonorGuildDeathDebug = "ENABLED"
+	else
+		MGTConfig.HonorGuildDeathDebug = "DISABLED"
+	end
+	if AddonTable.RefreshHonorGuildChannel then
+		AddonTable.RefreshHonorGuildChannel()
+	end
+	if AddonTable.RefreshHonorGuildRoster then
+		AddonTable.RefreshHonorGuildRoster()
+	end
+	RefreshHonorGuildDeathUI()
+end)
+
+local chkHonorGuildDeathDebugText = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontHighlight")
+chkHonorGuildDeathDebugText:SetPoint("LEFT", chkHonorGuildDeathDebug, "RIGHT", 0, 1)
+chkHonorGuildDeathDebugText:SetText(L["Debug (HardcoreDeathsDebug + print)"])
+
 local lblHonorChannelStatus = honorGuildDeathBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblHonorChannelStatus:SetPoint("TOPLEFT", chkHonorGuildDeathAuto, "BOTTOMLEFT", 0, -4)
+lblHonorChannelStatus:SetPoint("TOPLEFT", chkHonorGuildDeathDebug, "BOTTOMLEFT", 0, -4)
 lblHonorChannelStatus:SetPoint("RIGHT", honorGuildDeathBox, "RIGHT", -12, 0)
 lblHonorChannelStatus:SetJustifyH("LEFT")
 lblHonorChannelStatus:SetHeight(28)
@@ -560,8 +596,27 @@ function RefreshHonorGuildDeathUI()
 	if not lblHonorChannelStatus then
 		return
 	end
+	local debugEnabled = MGTConfig and MGTConfig.HonorGuildDeathDebug == "ENABLED"
 	if not IsInGuild or not IsInGuild() then
-		lblHonorChannelStatus:SetText(L["Honor death requires guild"])
+		if debugEnabled then
+			lblHonorChannelStatus:SetText(L["Honor death debug channel (guild not required for parse logs)"])
+		else
+			lblHonorChannelStatus:SetText(L["Honor death requires guild"])
+		end
+		if debugEnabled and AddonTable.EnsureHardcoreDeathsChannel then
+			AddonTable.EnsureHardcoreDeathsChannel()
+		end
+		return
+	end
+	if debugEnabled then
+		if AddonTable.EnsureHardcoreDeathsChannel then
+			AddonTable.EnsureHardcoreDeathsChannel()
+		end
+		if AddonTable.IsHardcoreDeathsChannelJoined and AddonTable.IsHardcoreDeathsChannelJoined() then
+			lblHonorChannelStatus:SetText(L["HardcoreDeathsDebug channel joined (print mode)"])
+		else
+			lblHonorChannelStatus:SetText(L["Join HardcoreDeathsDebug channel"])
+		end
 		return
 	end
 	if MGTConfig and MGTConfig.HonorGuildDeathAuto == "ENABLED" then

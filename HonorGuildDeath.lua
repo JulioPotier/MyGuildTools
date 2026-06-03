@@ -2,6 +2,7 @@ local AddonName, AddonTable = ...
 local L = AddonTable.Localize
 
 local DEATH_CHANNEL = "HardcoreDeaths"
+local DEATH_CHANNEL_DEBUG = "HardcoreDeathsDebug"
 local MGT_DEFAULT_HONOR_FORMAT = "F"
 
 local honorState = {
@@ -12,6 +13,16 @@ local honorState = {
 	killerWhoPending = {},
 	deferredDeathMessages = {},
 }
+
+local pendingHonorDeathMessages = {}
+local pendingHonorRetryScheduled = false
+local pendingGuildHonorOutput = {}
+
+local pendingWhoQueries = {}
+local pendingWhoAfterCombat = false
+local whoDispatchFrame = CreateFrame("Frame")
+whoDispatchFrame:Hide()
+local whoDispatchWait = 0
 
 local MGT_ALLIANCE_RACES = {
 	["human"] = true,
@@ -57,6 +68,14 @@ local function MGTStripChatCodes(msg)
 	return (msg or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
 end
 
+local function MGTNormalizeDeathChatMessage(msg)
+	msg = MGTStripChatCodes(msg)
+	msg = MGTTrim(msg)
+	local deathLine = msg:match("^(%[[^%]]+%].-[Tt]hey were level %d+%.?)")
+		or msg:match("^(%[[^%]]+%].-[Tt]hey were level %d+)")
+	return deathLine or msg
+end
+
 local function MGTGetHonorFormat()
 	if MGTConfig and MGTConfig.HonorGuildDeathFormat and MGTConfig.HonorGuildDeathFormat ~= "" then
 		return MGTConfig.HonorGuildDeathFormat
@@ -68,13 +87,44 @@ local function MGTIsHonorAutoEnabled()
 	return MGTConfig and MGTConfig.HonorGuildDeathAuto == "ENABLED"
 end
 
-local function MGTChannelNameMatchesHardcoreDeaths(channelName)
+local function MGTIsHonorDebugEnabled()
+	return MGTConfig and MGTConfig.HonorGuildDeathDebug == "ENABLED"
+end
+
+local function MGTIsHonorListeningEnabled()
+	return MGTIsHonorAutoEnabled() or MGTIsHonorDebugEnabled()
+end
+
+local function MGTGetDeathChannelName()
+	if MGTIsHonorDebugEnabled() then
+		return DEATH_CHANNEL_DEBUG
+	end
+	return DEATH_CHANNEL
+end
+
+local function MGTDebugLog(...)
+	if not MGTIsHonorDebugEnabled() then
+		return
+	end
+	local parts = { ... }
+	for i = 1, #parts do
+		parts[i] = tostring(parts[i])
+	end
+	print("|cFFFF8800[MyGuildTools Debug]|r " .. table.concat(parts, " "))
+end
+
+local function MGTChannelNameMatchesDeathChannel(channelName)
 	if type(channelName) ~= "string" then
 		return false
 	end
 	local base = channelName:gsub("^%d+%.%s*", "")
-	base = base:gsub("^#", "")
-	return base:lower() == DEATH_CHANNEL:lower()
+	base = base:gsub("^#", ""):lower()
+	local target = MGTGetDeathChannelName():lower()
+	return base == target or base:find(target, 1, true) ~= nil
+end
+
+local function MGTChannelNameMatchesHardcoreDeaths(channelName)
+	return MGTChannelNameMatchesDeathChannel(channelName)
 end
 
 function AddonTable.IsHardcoreDeathsChannelJoined()
@@ -89,21 +139,25 @@ function AddonTable.IsHardcoreDeathsChannelJoined()
 end
 
 function AddonTable.JoinHardcoreDeathsChannel()
-	if not MGTIsHonorAutoEnabled() then
+	if not MGTIsHonorListeningEnabled() then
 		return false
 	end
-	JoinChannelByName(DEATH_CHANNEL)
+	JoinChannelByName(MGTGetDeathChannelName())
 	return true
 end
 
 function AddonTable.EnsureHardcoreDeathsChannel()
-	if not MGTIsHonorAutoEnabled() then
+	if not MGTIsHonorListeningEnabled() then
 		return AddonTable.IsHardcoreDeathsChannelJoined()
 	end
 	if not AddonTable.IsHardcoreDeathsChannelJoined() then
-		JoinChannelByName(DEATH_CHANNEL)
+		JoinChannelByName(MGTGetDeathChannelName())
 	end
 	return AddonTable.IsHardcoreDeathsChannelJoined()
+end
+
+function AddonTable.IsHonorGuildDeathDebugEnabled()
+	return MGTIsHonorDebugEnabled()
 end
 
 local function MGTGetHonorRosterCache()
@@ -177,17 +231,80 @@ local function MGTStoreMemberDetails(name, class, race, sex)
 	end
 end
 
+local function MGTExecuteSendWho(query)
+	if not query or query == "" then
+		return false
+	end
+	local ok = pcall(function()
+		if C_FriendList and C_FriendList.SendWho then
+			C_FriendList.SendWho(query)
+		elseif SendWho then
+			SendWho(query)
+		end
+	end)
+	return ok
+end
+
+local function MGTStartWhoDispatch()
+	if #pendingWhoQueries == 0 then
+		whoDispatchFrame:Hide()
+		whoDispatchWait = 0
+		return
+	end
+	if not whoDispatchFrame:IsShown() then
+		whoDispatchWait = 0.05
+		whoDispatchFrame:Show()
+	end
+end
+
+whoDispatchFrame:SetScript("OnUpdate", function(_, elapsed)
+	if #pendingWhoQueries == 0 then
+		whoDispatchFrame:Hide()
+		whoDispatchWait = 0
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then
+		pendingWhoAfterCombat = true
+		return
+	end
+	whoDispatchWait = whoDispatchWait - elapsed
+	if whoDispatchWait > 0 then
+		return
+	end
+	local query = table.remove(pendingWhoQueries, 1)
+	if not MGTExecuteSendWho(query) and MGTIsHonorDebugEnabled() then
+		MGTDebugLog("SendWho blocked or failed for:", query)
+	end
+	if #pendingWhoQueries > 0 then
+		whoDispatchWait = 0.6
+	else
+		pendingWhoAfterCombat = false
+		whoDispatchFrame:Hide()
+	end
+end)
+
+local function MGTSafeSendWho(query)
+	if not query or query == "" then
+		return
+	end
+	table.insert(pendingWhoQueries, query)
+	if InCombatLockdown and InCombatLockdown() then
+		pendingWhoAfterCombat = true
+		return
+	end
+	MGTStartWhoDispatch()
+end
+
+local function MGTProcessWhoQueue()
+	MGTStartWhoDispatch()
+end
+
 local function MGTRequestWhoForRace(name, whoQuery)
 	if name == "" or honorState.whoPending[name] then
 		return
 	end
 	honorState.whoPending[name] = true
-	local query = whoQuery or name
-	if C_FriendList and C_FriendList.SendWho then
-		C_FriendList.SendWho(query)
-	elseif SendWho then
-		SendWho(query)
-	end
+	MGTSafeSendWho(whoQuery or name)
 end
 
 local function MGTGetPlayerCache()
@@ -311,12 +428,7 @@ local function MGTRequestWhoForKiller(name, whoQuery)
 		return
 	end
 	honorState.killerWhoPending[name] = true
-	local query = whoQuery or name
-	if C_FriendList and C_FriendList.SendWho then
-		C_FriendList.SendWho(query)
-	elseif SendWho then
-		SendWho(query)
-	end
+	MGTSafeSendWho(whoQuery or name)
 end
 
 local function MGTFormatSlainReason(killer, isPlayer, playerSuffix)
@@ -369,6 +481,20 @@ local function MGTBuildKilledReason(killer)
 	return MGTFormatSlainReason(killer, true, " (Mind Control)"), false
 end
 
+local function MGTScheduleHonorDeathRetry()
+	if pendingHonorRetryScheduled or not C_Timer or not C_Timer.After then
+		return
+	end
+	pendingHonorRetryScheduled = true
+	C_Timer.After(2, function()
+		pendingHonorRetryScheduled = false
+		MGTProcessPendingHonorDeaths()
+	end)
+	C_Timer.After(8, function()
+		MGTProcessPendingHonorDeaths()
+	end)
+end
+
 local function MGTRebuildHonorGuildRoster()
 	wipe(honorState.guildMembers)
 	wipe(honorState.memberDetails)
@@ -384,6 +510,7 @@ local function MGTRebuildHonorGuildRoster()
 
 	local n = GetNumGuildMembers and GetNumGuildMembers()
 	if not n or n <= 0 then
+		MGTScheduleHonorDeathRetry()
 		return
 	end
 
@@ -414,6 +541,81 @@ local function MGTRebuildHonorGuildRoster()
 	end
 
 	honorState.rosterReady = true
+	MGTProcessPendingHonorDeaths()
+end
+
+local function MGTQueueHonorDeathMessage(msg)
+	msg = MGTNormalizeDeathChatMessage(msg)
+	if not msg or msg == "" then
+		return
+	end
+	for i = 1, #pendingHonorDeathMessages do
+		if pendingHonorDeathMessages[i] == msg then
+			return
+		end
+	end
+	table.insert(pendingHonorDeathMessages, msg)
+end
+
+local function MGTCanProcessHonorDeathNow()
+	if MGTIsHonorDebugEnabled() then
+		return true
+	end
+	if not MGTIsHonorAutoEnabled() then
+		return false
+	end
+	if not IsInGuild or not IsInGuild() then
+		return false
+	end
+	if not AddonTable.IsHardcoreDeathsChannelJoined() then
+		return false
+	end
+	if not honorState.rosterReady then
+		return false
+	end
+	return true
+end
+
+local function MGTPrepareHonorDeathProcessing()
+	if not MGTIsHonorAutoEnabled() or MGTIsHonorDebugEnabled() then
+		return
+	end
+	if not IsInGuild or not IsInGuild() then
+		return
+	end
+	if not AddonTable.IsHardcoreDeathsChannelJoined() then
+		AddonTable.EnsureHardcoreDeathsChannel()
+	end
+	if not honorState.rosterReady then
+		if GuildRoster then
+			GuildRoster()
+		end
+		MGTRebuildHonorGuildRoster()
+	end
+end
+
+local function MGTSendHonorToGuild(output)
+	if not output or output == "" then
+		return false
+	end
+	if InCombatLockdown and InCombatLockdown() then
+		table.insert(pendingGuildHonorOutput, output)
+		return false
+	end
+	return pcall(SendChatMessage, output, "GUILD")
+end
+
+local function MGTFlushPendingGuildHonorOutput()
+	if InCombatLockdown and InCombatLockdown() then
+		return
+	end
+	while #pendingGuildHonorOutput > 0 do
+		local output = table.remove(pendingGuildHonorOutput, 1)
+		if not pcall(SendChatMessage, output, "GUILD") then
+			table.insert(pendingGuildHonorOutput, 1, output)
+			break
+		end
+	end
 end
 
 local function MGTGetGuildMemberInfo(deadName)
@@ -423,6 +625,14 @@ local function MGTGetGuildMemberInfo(deadName)
 
 	deadName = MGTNormalizeName(deadName)
 	if deadName == "" then
+		return nil, nil, nil
+	end
+
+	if not honorState.guildMembers[deadName] then
+		local rosterCache = MGTGetHonorRosterCache()
+		if rosterCache and rosterCache[deadName] then
+			return rosterCache[deadName].class, rosterCache[deadName].race, rosterCache[deadName].sex
+		end
 		return nil, nil, nil
 	end
 
@@ -708,31 +918,104 @@ end
 
 local function MGTIsDeathChannelEvent(...)
 	local channelBaseName = select(9, ...)
-	local channelName = select(4, ...)
-	local base = channelBaseName or channelName or ""
-	if type(base) ~= "string" then
-		return false
+	local channelString = select(4, ...)
+	local matches = MGTChannelNameMatchesDeathChannel(channelBaseName)
+		or MGTChannelNameMatchesDeathChannel(channelString)
+	if matches and MGTIsHonorDebugEnabled() then
+		MGTDebugLog("HardcoreDeathsDebug msg:", MGTNormalizeDeathChatMessage(select(1, ...)))
 	end
-	return base:lower() == DEATH_CHANNEL:lower()
+	return matches
 end
 
 local function MGTSendHonorForDeathMessage(msg)
+	msg = MGTNormalizeDeathChatMessage(msg)
 	local output, data = AddonTable.BuildHonorDeathOutput(msg)
-	if not output or not data or data.name == "" then
-		return false
+	local debug = MGTIsHonorDebugEnabled()
+
+	if debug then
+		MGTDebugLog("processing msg:", msg)
+		if not data then
+			MGTDebugLog("parse FAILED")
+			return false
+		end
+		MGTDebugLog(
+			"parsed NAME=", data.name or "",
+			"LEVEL=", data.level or "",
+			"RACE=", data.race or "",
+			"CLASS=", data.class or "",
+			"ZONE=", data.zone or "",
+			"REASON=", data.reason or "",
+			"needsKillerWho=", data.needsKillerWho and "yes" or "no"
+		)
+	else
+		if not output or not data or data.name == "" then
+			return false
+		end
+		if not honorState.guildMembers[data.name] then
+			if not honorState.rosterReady then
+				MGTQueueHonorDeathMessage(msg)
+				MGTPrepareHonorDeathProcessing()
+				MGTScheduleHonorDeathRetry()
+			end
+			return false
+		end
 	end
 
-	if not honorState.guildMembers[data.name] then
-		return false
-	end
+	local isGuildMember = data and data.name ~= "" and honorState.guildMembers[data.name] == true
 
-	if data.needsKillerWho then
+	if data and data.needsKillerWho then
+		if not isGuildMember then
+			if debug then
+				MGTDebugLog("skipped: not a guild member")
+			end
+			return false
+		end
+		if debug then
+			MGTDebugLog("deferred (waiting for killer /who)")
+		end
 		honorState.deferredDeathMessages[msg] = true
 		return false
 	end
 
-	SendChatMessage(output, "GUILD")
+	if not isGuildMember then
+		if debug then
+			MGTDebugLog("guild member?", "no", "rosterReady=", honorState.rosterReady and "yes" or "no")
+			MGTDebugLog("skipped: not a guild member (no honor output)")
+		end
+		return false
+	end
+
+	if not debug then
+		MGTSendHonorToGuild(output)
+		return true
+	end
+
+	MGTDebugLog("guild member?", "yes", "rosterReady=", honorState.rosterReady and "yes" or "no")
+	MGTDebugLog("honor output:", output or "(empty)")
+
+	if output and output ~= "" then
+		print("|cFF0088FF[MyGuildTools]|r " .. L["Honor death test output"] .. " " .. output)
+	else
+		MGTDebugLog("no honor output generated")
+	end
+
 	return true
+end
+
+function MGTProcessPendingHonorDeaths()
+	if #pendingHonorDeathMessages == 0 then
+		return
+	end
+	if not MGTCanProcessHonorDeathNow() and not MGTIsHonorDebugEnabled() then
+		MGTPrepareHonorDeathProcessing()
+		MGTScheduleHonorDeathRetry()
+		return
+	end
+	local queued = pendingHonorDeathMessages
+	pendingHonorDeathMessages = {}
+	for i = 1, #queued do
+		MGTSendHonorForDeathMessage(queued[i])
+	end
 end
 
 local function MGTProcessDeferredHonorDeaths()
@@ -746,16 +1029,32 @@ local function MGTProcessDeferredHonorDeaths()
 end
 
 local function MGTHandleHonorDeathMessage(msg)
+	msg = MGTNormalizeDeathChatMessage(msg)
+	if not msg or msg == "" or not MGTIsHonorListeningEnabled() then
+		return
+	end
+
+	if MGTIsHonorDebugEnabled() then
+		MGTDebugLog("HandleHonorDeathMessage raw:", msg)
+		MGTDebugLog("stripped:", MGTStripChatCodes(msg))
+		MGTDebugLog("in guild:", (IsInGuild and IsInGuild()) and "yes" or "no")
+		MGTDebugLog("channel joined:", AddonTable.IsHardcoreDeathsChannelJoined() and "yes" or "no")
+		MGTDebugLog("roster ready:", honorState.rosterReady and "yes" or "no")
+		if not honorState.rosterReady then
+			MGTRebuildHonorGuildRoster()
+		end
+		MGTSendHonorForDeathMessage(msg)
+		return
+	end
+
 	if not MGTIsHonorAutoEnabled() then
 		return
 	end
-	if not IsInGuild or not IsInGuild() then
-		return
-	end
-	if not AddonTable.IsHardcoreDeathsChannelJoined() then
-		return
-	end
-	if not honorState.rosterReady then
+
+	if not MGTCanProcessHonorDeathNow() then
+		MGTQueueHonorDeathMessage(msg)
+		MGTPrepareHonorDeathProcessing()
+		MGTScheduleHonorDeathRetry()
 		return
 	end
 
@@ -763,7 +1062,7 @@ local function MGTHandleHonorDeathMessage(msg)
 end
 
 local function MGTScheduleChannelJoin()
-	if not MGTIsHonorAutoEnabled() then
+	if not MGTIsHonorListeningEnabled() then
 		return
 	end
 	AddonTable.EnsureHardcoreDeathsChannel()
@@ -779,11 +1078,12 @@ honorFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 honorFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
 honorFrame:RegisterEvent("PLAYER_GUILD_UPDATE")
 honorFrame:RegisterEvent("CHAT_MSG_CHANNEL")
+honorFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 honorFrame:RegisterEvent("WHO_LIST_UPDATE")
 
 honorFrame:SetScript("OnEvent", function(_, event, ...)
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-		if MGTIsHonorAutoEnabled() then
+		if MGTIsHonorListeningEnabled() then
 			MGTScheduleChannelJoin()
 			MGTRebuildHonorGuildRoster()
 		end
@@ -791,7 +1091,7 @@ honorFrame:SetScript("OnEvent", function(_, event, ...)
 	end
 
 	if event == "PLAYER_GUILD_UPDATE" then
-		if MGTIsHonorAutoEnabled() then
+		if MGTIsHonorListeningEnabled() then
 			MGTScheduleChannelJoin()
 			MGTRebuildHonorGuildRoster()
 		end
@@ -799,18 +1099,39 @@ honorFrame:SetScript("OnEvent", function(_, event, ...)
 	end
 
 	if event == "GUILD_ROSTER_UPDATE" then
-		if MGTIsHonorAutoEnabled() then
+		if MGTIsHonorListeningEnabled() then
 			MGTRebuildHonorGuildRoster()
 		end
 		return
 	end
 
 	if event == "CHAT_MSG_CHANNEL" then
+		if not MGTIsHonorListeningEnabled() then
+			return
+		end
 		if not MGTIsDeathChannelEvent(...) then
 			return
 		end
-		local msg = ...
-		MGTHandleHonorDeathMessage(msg)
+		local msg = MGTNormalizeDeathChatMessage(...)
+		if not msg or msg == "" then
+			return
+		end
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, function()
+				MGTHandleHonorDeathMessage(msg)
+			end)
+		else
+			MGTHandleHonorDeathMessage(msg)
+		end
+		return
+	end
+
+	if event == "PLAYER_REGEN_ENABLED" then
+		if pendingWhoAfterCombat then
+			MGTProcessWhoQueue()
+		end
+		MGTFlushPendingGuildHonorOutput()
+		MGTProcessPendingHonorDeaths()
 		return
 	end
 
