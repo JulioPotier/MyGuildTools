@@ -29,8 +29,29 @@ function AddonTable.PlayerCanGuildInvite()
 	return true
 end
 
+function AddonTable.EnsureMGTCharConfig()
+	MGTCharConfig = MGTCharConfig or {}
+	if MGTCharConfig.GuildInviteMenu == nil then
+		if MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" then
+			MGTCharConfig.GuildInviteMenu = "ENABLED"
+		else
+			MGTCharConfig.GuildInviteMenu = "DISABLED"
+		end
+	end
+end
+
+function AddonTable.GetGuildInviteMenuSetting()
+	AddonTable.EnsureMGTCharConfig()
+	return MGTCharConfig.GuildInviteMenu
+end
+
+function AddonTable.SetGuildInviteMenuSetting(value)
+	AddonTable.EnsureMGTCharConfig()
+	MGTCharConfig.GuildInviteMenu = value
+end
+
 local function IsGuildInviteMenuEnabled()
-	return MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" and AddonTable.PlayerCanGuildInvite()
+	return AddonTable.GetGuildInviteMenuSetting() == "ENABLED" and AddonTable.PlayerCanGuildInvite()
 end
 
 local function GetContextPlayerName(contextData)
@@ -411,6 +432,19 @@ local function ResolveUnitFromPlayerName(playerName)
 	return nil
 end
 
+AddonTable.ResolveUnitFromPlayerName = ResolveUnitFromPlayerName
+
+function AddonTable.PlacePopupNearCursor(popup)
+	if not popup then
+		return
+	end
+	popup:ClearAllPoints()
+	popup:SetFrameStrata("FULLSCREEN_DIALOG")
+	local x, y = GetCursorPosition()
+	local scale = UIParent:GetEffectiveScale()
+	popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
+end
+
 local function HideGinviteButton()
 	if popup then
 		popup:Hide()
@@ -451,16 +485,7 @@ function AddonTable.ShowGinviteButton(playerName, anchorFrame)
 	popup:SetWidth(inviteButton:GetWidth() + 16)
 	popup:SetHeight(36)
 
-	popup:ClearAllPoints()
-	popup:SetFrameStrata("FULLSCREEN_DIALOG")
-	if anchorFrame and anchorFrame.GetCenter then
-		popup:SetFrameLevel((anchorFrame.GetFrameLevel and anchorFrame:GetFrameLevel() or 0) + 20)
-		popup:SetPoint("CENTER", anchorFrame, "CENTER", 0, 0)
-	else
-		local x, y = GetCursorPosition()
-		local scale = UIParent:GetEffectiveScale()
-		popup:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", (x / scale) + 8, (y / scale) + 8)
-	end
+	AddonTable.PlacePopupNearCursor(popup)
 
 	dismissFrame:Show()
 	popup:Show()
