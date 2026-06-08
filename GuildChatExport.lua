@@ -265,9 +265,9 @@ local function CollectPlainLinesFromVisible(sourceFrame)
 	end)
 
 	-- API iterates bottom-up; export oldest-first.
-	for left, right = 1, math.floor(#lines / 2) do
-		lines[left], lines[right] = lines[right], lines[left]
-		right = #lines - left + 1
+	for index = 1, math.floor(#lines / 2) do
+		local swapIndex = #lines - index + 1
+		lines[index], lines[swapIndex] = lines[swapIndex], lines[index]
 	end
 
 	return lines

@@ -3,7 +3,7 @@ local L = AddonTable.Localize
 
 local DEATH_CHANNEL = "HardcoreDeaths"
 local DEATH_CHANNEL_DEBUG = "HardcoreDeathsDebug"
-local MGT_DEFAULT_HONOR_FORMAT = "F"
+local MGT_DEFAULT_HONOR_FORMAT = "F %NAME% (lvl %LEVEL%) :'("
 
 local honorState = {
 	rosterReady = false,
@@ -96,6 +96,9 @@ local function MGTIsHonorListeningEnabled()
 end
 
 local function MGTGetDeathChannelName()
+	if MGTIsHonorAutoEnabled() then
+		return DEATH_CHANNEL
+	end
 	if MGTIsHonorDebugEnabled() then
 		return DEATH_CHANNEL_DEBUG
 	end
@@ -470,7 +473,8 @@ local function MGTBuildKilledReason(killer)
 	end
 
 	if not killerFaction then
-		return "slain by " .. killer, true
+		-- Unknown single-word killer: send immediately (mob-style), like addon F.
+		return MGTFormatSlainReason(killer, false, ""), false
 	end
 
 	local playerFaction = UnitFactionGroup and UnitFactionGroup("player")
@@ -517,7 +521,13 @@ local function MGTRebuildHonorGuildRoster()
 	local cache = MGTGetHonorRosterCache()
 
 	for i = 1, n do
-		local rosterName, classDisplay, guid = MGTExtractGuildRosterFields(i)
+		local rosterName = GetGuildRosterInfo and GetGuildRosterInfo(i)
+		local classDisplay, guid
+		if not rosterName or rosterName == "" then
+			rosterName, classDisplay, guid = MGTExtractGuildRosterFields(i)
+		else
+			_, classDisplay, guid = MGTExtractGuildRosterFields(i)
+		end
 		local name = MGTNormalizeName(rosterName)
 		if name ~= "" then
 			local class = classDisplay or ""
@@ -567,9 +577,6 @@ local function MGTCanProcessHonorDeathNow()
 	if not IsInGuild or not IsInGuild() then
 		return false
 	end
-	if not AddonTable.IsHardcoreDeathsChannelJoined() then
-		return false
-	end
 	if not honorState.rosterReady then
 		return false
 	end
@@ -577,15 +584,13 @@ local function MGTCanProcessHonorDeathNow()
 end
 
 local function MGTPrepareHonorDeathProcessing()
-	if not MGTIsHonorAutoEnabled() or MGTIsHonorDebugEnabled() then
+	if not MGTIsHonorAutoEnabled() then
 		return
 	end
 	if not IsInGuild or not IsInGuild() then
 		return
 	end
-	if not AddonTable.IsHardcoreDeathsChannelJoined() then
-		AddonTable.EnsureHardcoreDeathsChannel()
-	end
+	AddonTable.EnsureHardcoreDeathsChannel()
 	if not honorState.rosterReady then
 		if GuildRoster then
 			GuildRoster()
@@ -919,8 +924,14 @@ end
 local function MGTIsDeathChannelEvent(...)
 	local channelBaseName = select(9, ...)
 	local channelString = select(4, ...)
-	local matches = MGTChannelNameMatchesDeathChannel(channelBaseName)
-		or MGTChannelNameMatchesDeathChannel(channelString)
+	local target = MGTGetDeathChannelName():lower()
+	local matches = false
+	if type(channelBaseName) == "string" and channelBaseName:lower() == target then
+		matches = true
+	elseif MGTChannelNameMatchesDeathChannel(channelBaseName)
+		or MGTChannelNameMatchesDeathChannel(channelString) then
+		matches = true
+	end
 	if matches and MGTIsHonorDebugEnabled() then
 		MGTDebugLog("HardcoreDeathsDebug msg:", MGTNormalizeDeathChatMessage(select(1, ...)))
 	end
@@ -962,20 +973,6 @@ local function MGTSendHonorForDeathMessage(msg)
 	end
 
 	local isGuildMember = data and data.name ~= "" and honorState.guildMembers[data.name] == true
-
-	if data and data.needsKillerWho then
-		if not isGuildMember then
-			if debug then
-				MGTDebugLog("skipped: not a guild member")
-			end
-			return false
-		end
-		if debug then
-			MGTDebugLog("deferred (waiting for killer /who)")
-		end
-		honorState.deferredDeathMessages[msg] = true
-		return false
-	end
 
 	if not isGuildMember then
 		if debug then
@@ -1034,7 +1031,7 @@ local function MGTHandleHonorDeathMessage(msg)
 		return
 	end
 
-	if MGTIsHonorDebugEnabled() then
+	if MGTIsHonorDebugEnabled() and not MGTIsHonorAutoEnabled() then
 		MGTDebugLog("HandleHonorDeathMessage raw:", msg)
 		MGTDebugLog("stripped:", MGTStripChatCodes(msg))
 		MGTDebugLog("in guild:", (IsInGuild and IsInGuild()) and "yes" or "no")
@@ -1049,6 +1046,10 @@ local function MGTHandleHonorDeathMessage(msg)
 
 	if not MGTIsHonorAutoEnabled() then
 		return
+	end
+
+	if MGTIsHonorDebugEnabled() then
+		MGTDebugLog("auto honor msg:", msg)
 	end
 
 	if not MGTCanProcessHonorDeathNow() then
@@ -1116,13 +1117,7 @@ honorFrame:SetScript("OnEvent", function(_, event, ...)
 		if not msg or msg == "" then
 			return
 		end
-		if C_Timer and C_Timer.After then
-			C_Timer.After(0, function()
-				MGTHandleHonorDeathMessage(msg)
-			end)
-		else
-			MGTHandleHonorDeathMessage(msg)
-		end
+		MGTHandleHonorDeathMessage(msg)
 		return
 	end
 

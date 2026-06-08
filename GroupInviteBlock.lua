@@ -30,6 +30,8 @@ local MINIMAP_BLOCK_MENU_MODES = {
 	AddonTable.GROUP_INVITE_BLOCK_ALWAYS,
 }
 
+local partyInvitePopupHookInstalled = false
+
 local BLOCK_MODE_LABELS = {
 	[AddonTable.GROUP_INVITE_BLOCK_NONE] = function()
 		return L["Not blocked"]
@@ -43,7 +45,11 @@ local BLOCK_MODE_LABELS = {
 }
 
 local function NormalizeBlockMode(mode)
-	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
+	if mode == "INVITE_BACK" then
+		return AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	end
+	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
+		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
 		return mode
 	end
 	return AddonTable.GROUP_INVITE_BLOCK_NONE
@@ -64,6 +70,10 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
+	if MGTConfig.BlockGroupInvites == "ENABLED"
+		and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	end
 end
 
 local function TrimString(s)
@@ -101,6 +111,9 @@ end
 function AddonTable.SetGroupInviteBlockActive(enabled)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	MGTConfig.BlockGroupInvites = enabled and "ENABLED" or "DISABLED"
+	if enabled and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	end
 	AddonTable.RefreshGroupInviteBlocker()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	if AddonTable.RefreshInvitationsOptionsUI then
@@ -117,7 +130,8 @@ function AddonTable.SetGroupInviteBlockMode(mode)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	mode = NormalizeBlockMode(mode)
 	MGTConfig.GroupInviteBlockMode = mode
-	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
+	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
+		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
 		MGTConfig.BlockGroupInvites = "ENABLED"
 	end
 	AddonTable.UpdateGroupInviteMinimapIcon()
@@ -175,7 +189,8 @@ local function ShouldFilterAutoLayerWhispers()
 		return false
 	end
 	local mode = AddonTable.GetGroupInviteBlockMode and AddonTable.GetGroupInviteBlockMode()
-	return mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS or mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
+	return mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+		or mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
 end
 
 local function WhisperFilter_AutoLayer(_, _, message)
@@ -251,18 +266,37 @@ local function OnPartyInviteRequest(inviterName)
 	if not ShouldDeclinePartyInvite() then
 		return
 	end
-
 	DeclinePartyInvite()
+end
+
+local function InstallPartyInvitePopupHook()
+	if partyInvitePopupHookInstalled or not hooksecurefunc then
+		return
+	end
+	partyInvitePopupHookInstalled = true
+	hooksecurefunc("StaticPopup_Show", function(which)
+		if which ~= "PARTY_INVITE" and which ~= "PARTY_INVITE_XREALM" then
+			return
+		end
+		if not ShouldDeclinePartyInvite() then
+			return
+		end
+		if DeclineGroup then
+			DeclineGroup()
+		end
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0, HidePartyInvitePopups)
+		else
+			HidePartyInvitePopups()
+		end
+	end)
 end
 
 function AddonTable.RefreshGroupInviteBlocker()
 	if not blockFrame then
 		return
 	end
-	if AddonTable.IsGroupInviteBlockActive() then
-		blockFrame:RegisterEvent("PARTY_INVITE_REQUEST")
-	else
-		blockFrame:UnregisterEvent("PARTY_INVITE_REQUEST")
+	if not AddonTable.IsGroupInviteBlockActive() then
 		ClearPendingInvite()
 	end
 end
@@ -467,12 +501,14 @@ end
 blockFrame = CreateFrame("Frame")
 blockFrame:RegisterEvent("ADDON_LOADED")
 blockFrame:RegisterEvent("PLAYER_LOGIN")
+blockFrame:RegisterEvent("PARTY_INVITE_REQUEST")
 blockFrame:SetScript("OnEvent", function(_, event, arg1, ...)
 	if event == "ADDON_LOADED" and arg1 ~= AddonName then
 		return
 	end
 	if event == "ADDON_LOADED" or event == "PLAYER_LOGIN" then
 		AddonTable.EnsureMGTGroupInviteConfig()
+		InstallPartyInvitePopupHook()
 		if ChatFrame_AddMessageEventFilter then
 			ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", WhisperFilter_AutoLayer)
 		end

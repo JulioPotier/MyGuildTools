@@ -56,9 +56,23 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["TabardStalkerAutoScan"] = "DISABLED",
 			["HonorGuildDeathAuto"] = "DISABLED",
 			["HonorGuildDeathDebug"] = "DISABLED",
-			["HonorGuildDeathFormat"] = "F",
+			["HonorGuildDeathFormat"] = "F %NAME% (lvl %LEVEL%) :'(",
 			["HonorDeathRosterCache"] = {},
 			["HonorDeathPlayerCache"] = {},
+			["BlockGroupInvites"] = "DISABLED",
+			["GroupInviteBlockMode"] = "NONE",
+			["MinimapBlockButton"] = "DISABLED",
+			["MinimapBlockAngle"] = 225,
+			["BlacklistEnabled"] = "DISABLED",
+			["BlacklistNames"] = {},
+			["BlacklistAlertWhisper"] = "ENABLED",
+			["BlacklistAlertGroup"] = "ENABLED",
+			["BlacklistAlertTrade"] = "ENABLED",
+			["BlacklistAlertProximity"] = "ENABLED",
+			["BlacklistPlaySound"] = "ENABLED",
+			["BlacklistAutoBlock"] = "DISABLED",
+			["BlacklistFuzzyMatch"] = "ENABLED",
+			["BlacklistFuzzyMaxDistance"] = 1,
 		}
 	end
 	
@@ -76,13 +90,32 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 		end
 	end
 	if MGTConfig.GuildInviteMenu == nil then MGTConfig.GuildInviteMenu = 'DISABLED' end
+	if AddonTable.EnsureMGTGroupInviteConfig then
+		AddonTable.EnsureMGTGroupInviteConfig()
+	end
+	if AddonTable.RefreshGroupInviteBlocker then
+		AddonTable.RefreshGroupInviteBlocker()
+	end
+	if AddonTable.RefreshGroupInviteMinimapButton then
+		AddonTable.RefreshGroupInviteMinimapButton()
+	end
+	if AddonTable.EnsureMGTBlacklistConfig then
+		AddonTable.EnsureMGTBlacklistConfig()
+	end
+	if AddonTable.RefreshBlacklistWatcher then
+		AddonTable.RefreshBlacklistWatcher()
+	end
 	if MGTConfig.GuildNotes == nil then MGTConfig.GuildNotes = 'DISABLED' end
 	if MGTConfig.TabardStalkerGuildOnly == nil then MGTConfig.TabardStalkerGuildOnly = 'ENABLED' end
 	if MGTConfig.TabardStalkerMinLevel == nil then MGTConfig.TabardStalkerMinLevel = '40' end
 	if MGTConfig.TabardStalkerAutoScan == nil then MGTConfig.TabardStalkerAutoScan = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathAuto == nil then MGTConfig.HonorGuildDeathAuto = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathDebug == nil then MGTConfig.HonorGuildDeathDebug = 'DISABLED' end
-	if MGTConfig.HonorGuildDeathFormat == nil then MGTConfig.HonorGuildDeathFormat = 'F' end
+	if MGTConfig.HonorGuildDeathFormat == nil or MGTConfig.HonorGuildDeathFormat == "" then
+		MGTConfig.HonorGuildDeathFormat = "F %NAME% (lvl %LEVEL%) :'("
+	elseif MGTConfig.HonorGuildDeathFormat == "F" then
+		MGTConfig.HonorGuildDeathFormat = "F %NAME% (lvl %LEVEL%) :'("
+	end
 	if MGTConfig.HonorDeathRosterCache == nil then MGTConfig.HonorDeathRosterCache = {} end
 	if MGTConfig.HonorDeathPlayerCache == nil then MGTConfig.HonorDeathPlayerCache = {} end
 	if MGTConfig.TooltipFormat then

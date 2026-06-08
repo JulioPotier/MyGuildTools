@@ -32,11 +32,14 @@ end
 function AddonTable.EnsureMGTCharConfig()
 	MGTCharConfig = MGTCharConfig or {}
 	if MGTCharConfig.GuildInviteMenu == nil then
-		if MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" then
-			MGTCharConfig.GuildInviteMenu = "ENABLED"
-		else
-			MGTCharConfig.GuildInviteMenu = "DISABLED"
-		end
+		MGTCharConfig.GuildInviteMenu = "DISABLED"
+	end
+end
+
+function AddonTable.SyncGuildInviteMenuForCharacter()
+	AddonTable.EnsureMGTCharConfig()
+	if not AddonTable.PlayerCanGuildInvite() then
+		AddonTable.SetGuildInviteMenuSetting("DISABLED")
 	end
 end
 
@@ -626,7 +629,13 @@ RegisterContextMenus()
 
 local patchFrame = CreateFrame("Frame")
 patchFrame:RegisterEvent("PLAYER_LOGIN")
+patchFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+patchFrame:RegisterEvent("PLAYER_GUILD_UPDATE")
 patchFrame:SetScript("OnEvent", function()
 	EnsureGuildMemberPopupsPatched()
+	AddonTable.SyncGuildInviteMenuForCharacter()
+	if AddonTable.RefreshGuildInviteOptionsUI then
+		AddonTable.RefreshGuildInviteOptionsUI()
+	end
 end)
 EnsureGuildMemberPopupsPatched()

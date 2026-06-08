@@ -11,6 +11,7 @@ MyGuildTools.lua
 HonorGuildDeath.lua
 GuildInvite.lua
 GroupInviteBlock.lua
+Blacklist.lua
 TabardScan.lua
 ChatTarget.lua
 GuildChatExport.lua

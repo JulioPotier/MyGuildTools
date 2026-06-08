@@ -318,12 +318,12 @@ end
 ddFontSize:SetScript("OnShow", RefreshFontSizeDropdown)
 RefreshFontSizeDropdown()
 
--- Guild Invite options section
+-- Invitations options section
 
-local guildInviteBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-guildInviteBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
-guildInviteBox:SetSize(420, 112)
-guildInviteBox:SetBackdrop({
+local invitationsBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+invitationsBox:SetPoint("TOPLEFT", tooltipBox, "BOTTOMLEFT", 0, -16)
+invitationsBox:SetSize(420, 112)
+invitationsBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 	tile = true,
@@ -331,29 +331,166 @@ guildInviteBox:SetBackdrop({
 	edgeSize = 16,
 	insets = { left = 4, right = 4, top = 4, bottom = 4 },
 })
-guildInviteBox:SetBackdropColor(0, 0, 0, 0.5)
+invitationsBox:SetBackdropColor(0, 0, 0, 0.5)
 
-local lblGuildInviteSection = guildInviteBox:CreateFontString(nil, nil, "GameFontNormalLarge")
-lblGuildInviteSection:SetPoint("TOPLEFT", guildInviteBox, "TOPLEFT", 12, -8)
-lblGuildInviteSection:SetText(L["Guild Invite"])
+local lblInvitationsSection = invitationsBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblInvitationsSection:SetPoint("TOPLEFT", invitationsBox, "TOPLEFT", 12, -8)
+lblInvitationsSection:SetText(L["Invitations"])
 
 local guildInviteOpts = {}
 
-guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, guildInviteBox, "OptionsBaseCheckButtonTemplate")
-guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblGuildInviteSection, "BOTTOMLEFT", 0, -8)
+guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblInvitationsSection, "BOTTOMLEFT", 0, -8)
 
-guildInviteOpts.label = guildInviteBox:CreateFontString(nil, nil, "GameFontHighlight")
+guildInviteOpts.label = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
 guildInviteOpts.label:SetPoint("LEFT", guildInviteOpts.checkbox, "RIGHT", 0, 1)
 guildInviteOpts.label:SetText(L["Add a right-click menu to /ginvite"])
 
-guildInviteOpts.hint = guildInviteBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 0, -8)
-guildInviteOpts.hint:SetPoint("LEFT", guildInviteBox, "LEFT", 28, 0)
-guildInviteOpts.hint:SetPoint("RIGHT", guildInviteBox, "RIGHT", -12, 0)
+guildInviteOpts.hint = invitationsBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 16, -8)
+guildInviteOpts.hint:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
 guildInviteOpts.hint:SetJustifyH("LEFT")
 guildInviteOpts.hint:SetJustifyV("TOP")
 guildInviteOpts.hint:SetSpacing(4)
 guildInviteOpts.hint:SetText(L["Guild invite key hint"])
+
+local chkBlockGroupInvites = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+chkBlockGroupInvites:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", -16, -8)
+
+local lblBlockGroupInvites = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblBlockGroupInvites:SetPoint("LEFT", chkBlockGroupInvites, "RIGHT", 0, 1)
+lblBlockGroupInvites:SetText(L["Block Group Invitations"])
+
+local chkMinimapBlockButton = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+chkMinimapBlockButton:SetPoint("TOPLEFT", chkBlockGroupInvites, "BOTTOMLEFT", 0, -4)
+
+local lblMinimapBlockButton = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblMinimapBlockButton:SetPoint("LEFT", chkMinimapBlockButton, "RIGHT", 0, 1)
+lblMinimapBlockButton:SetText(L["Add minimap shortcut button"])
+
+local lblGroupBlockMode = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblGroupBlockMode:SetPoint("TOPLEFT", chkMinimapBlockButton, "BOTTOMLEFT", 0, -8)
+lblGroupBlockMode:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
+lblGroupBlockMode:SetJustifyH("LEFT")
+lblGroupBlockMode:SetText(L["Group invite block mode:"])
+
+local ddGroupBlockMode = CreateFrame("FRAME", "MGTGroupBlockMode", invitationsBox, "UIDropDownMenuTemplate")
+ddGroupBlockMode:SetPoint("TOPLEFT", lblGroupBlockMode, "BOTTOMLEFT", -16, -4)
+if GetLocale() == "frFR" then
+	UIDropDownMenu_SetWidth(ddGroupBlockMode, 220)
+else
+	UIDropDownMenu_SetWidth(ddGroupBlockMode, 200)
+end
+
+local GROUP_BLOCK_MODE_OPTIONS = {
+	AddonTable.GROUP_INVITE_BLOCK_NONE,
+	AddonTable.GROUP_INVITE_BLOCK_COMBAT,
+	AddonTable.GROUP_INVITE_BLOCK_ALWAYS,
+}
+
+local groupBlockDropdownInitialized = false
+
+local function InitGroupBlockModeDropdown()
+	if groupBlockDropdownInitialized then
+		return
+	end
+	groupBlockDropdownInitialized = true
+	if AddonTable.EnsureMGTGroupInviteConfig then
+		AddonTable.EnsureMGTGroupInviteConfig()
+	end
+	UIDropDownMenu_Initialize(ddGroupBlockMode, function(self, level, menuList)
+		local info = UIDropDownMenu_CreateInfo()
+		local current = AddonTable.GetGroupInviteBlockMode and AddonTable.GetGroupInviteBlockMode()
+		info.func = self.SetValue
+		for _, mode in ipairs(GROUP_BLOCK_MODE_OPTIONS) do
+			info.text = AddonTable.GetGroupInviteBlockModeLabel(mode)
+			info.arg1 = mode
+			info.checked = (mode == current)
+			UIDropDownMenu_AddButton(info)
+		end
+	end)
+end
+
+local function RefreshGroupBlockModeDropdown()
+	if not ddGroupBlockMode or not AddonTable.GetGroupInviteBlockMode then
+		return
+	end
+	InitGroupBlockModeDropdown()
+	local mode = AddonTable.GetGroupInviteBlockMode()
+	UIDropDownMenu_SetText(ddGroupBlockMode, AddonTable.GetGroupInviteBlockModeLabel(mode))
+end
+
+local groupBlockDropdownInit = CreateFrame("Frame")
+groupBlockDropdownInit:RegisterEvent("ADDON_LOADED")
+groupBlockDropdownInit:SetScript("OnEvent", function(self, event, addon)
+	if event == "ADDON_LOADED" and addon == AddonName then
+		InitGroupBlockModeDropdown()
+		self:UnregisterAllEvents()
+	end
+end)
+
+local function UpdateInvitationsBoxHeight()
+	local hintH = math.max(guildInviteOpts.hint:GetStringHeight() or 0, 14)
+	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8 + 22 + 14
+	if AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive() then
+		h = h + 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
+	end
+	invitationsBox:SetHeight(h)
+end
+
+local function RefreshInvitationsBlockControls()
+	local blockActive = AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive()
+	if blockActive then
+		chkMinimapBlockButton:Show()
+		lblMinimapBlockButton:Show()
+		lblGroupBlockMode:Show()
+		ddGroupBlockMode:Show()
+	else
+		chkMinimapBlockButton:Hide()
+		lblMinimapBlockButton:Hide()
+		lblGroupBlockMode:Hide()
+		ddGroupBlockMode:Hide()
+	end
+	UpdateInvitationsBoxHeight()
+end
+
+function ddGroupBlockMode:SetValue(newMode)
+	if AddonTable.SetGroupInviteBlockMode then
+		AddonTable.SetGroupInviteBlockMode(newMode)
+	end
+	RefreshGroupBlockModeDropdown()
+	RefreshInvitationsBlockControls()
+	CloseDropDownMenus()
+end
+
+function AddonTable.RefreshInvitationsOptionsUI()
+	if AddonTable.IsGroupInviteBlockActive then
+		chkBlockGroupInvites:SetChecked(AddonTable.IsGroupInviteBlockActive())
+	end
+	if AddonTable.IsMinimapBlockButtonEnabled then
+		chkMinimapBlockButton:SetChecked(AddonTable.IsMinimapBlockButtonEnabled())
+	end
+	RefreshGroupBlockModeDropdown()
+	RefreshInvitationsBlockControls()
+	if UpdateOptionsScrollHeight then
+		UpdateOptionsScrollHeight()
+	end
+end
+
+chkBlockGroupInvites:SetScript("OnClick", function(frame)
+	if not AddonTable.SetGroupInviteBlockActive then
+		return
+	end
+	AddonTable.SetGroupInviteBlockActive(frame:GetChecked() == true)
+	RefreshInvitationsBlockControls()
+end)
+
+chkMinimapBlockButton:SetScript("OnClick", function(frame)
+	if not AddonTable.SetMinimapBlockButtonEnabled then
+		return
+	end
+	AddonTable.SetMinimapBlockButtonEnabled(frame:GetChecked() == true)
+end)
 
 local function RefreshGuildInviteOptionsUI()
 	local checkbox = guildInviteOpts.checkbox
@@ -363,43 +500,34 @@ local function RefreshGuildInviteOptionsUI()
 		return
 	end
 
+	if AddonTable.SyncGuildInviteMenuForCharacter then
+		AddonTable.SyncGuildInviteMenuForCharacter()
+	end
+
 	local canUse = AddonTable.PlayerCanGuildInvite and AddonTable.PlayerCanGuildInvite()
 	if canUse then
 		checkbox:Enable()
 		label:SetTextColor(1, 0.82, 0)
 		hint:SetTextColor(0.5, 0.5, 0.5)
+		local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
+		checkbox:SetChecked(setting == "ENABLED")
 	else
 		checkbox:Disable()
 		checkbox:SetChecked(false)
-		if MGTConfig then
-			MGTConfig.GuildInviteMenu = "DISABLED"
-		end
 		label:SetTextColor(0.5, 0.5, 0.5)
 		hint:SetTextColor(0.35, 0.35, 0.35)
 	end
 end
 
-guildInviteOpts.checkbox:SetScript("OnUpdate", function(frame)
-	if not MGTConfig then
-		return
-	end
-	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
-		return
-	end
-	if MGTConfig.GuildInviteMenu == "ENABLED" then
-		frame:SetChecked(true)
-	elseif MGTConfig.GuildInviteMenu == "DISABLED" then
-		frame:SetChecked(false)
-	end
-end)
+AddonTable.RefreshGuildInviteOptionsUI = RefreshGuildInviteOptionsUI
 
 guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
-	if not MGTConfig then
+	if not AddonTable.SetGuildInviteMenuSetting then
 		return
 	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
 		frame:SetChecked(false)
-		MGTConfig.GuildInviteMenu = "DISABLED"
+		AddonTable.SetGuildInviteMenuSetting("DISABLED")
 		if not IsInGuild or not IsInGuild() then
 			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You are not in a guild."])
 		else
@@ -407,12 +535,7 @@ guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
 		end
 		return
 	end
-	local tick = frame:GetChecked()
-	if tick == false then
-		MGTConfig.GuildInviteMenu = "DISABLED"
-	elseif tick == true then
-		MGTConfig.GuildInviteMenu = "ENABLED"
-	end
+	AddonTable.SetGuildInviteMenuSetting(frame:GetChecked() and "ENABLED" or "DISABLED")
 end)
 
 local guildInviteOptionsWatcher = CreateFrame("Frame")
@@ -429,7 +552,7 @@ end)
 -- Honor Guild Death
 
 local honorGuildDeathBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-honorGuildDeathBox:SetPoint("TOPLEFT", guildInviteBox, "BOTTOMLEFT", 0, -16)
+honorGuildDeathBox:SetPoint("TOPLEFT", invitationsBox, "BOTTOMLEFT", 0, -16)
 honorGuildDeathBox:SetSize(420, 272)
 honorGuildDeathBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -810,6 +933,314 @@ local tabardSpinnerRotate = tabardSpinnerAnim:CreateAnimation("Rotation")
 tabardSpinnerRotate:SetDegrees(360)
 tabardSpinnerRotate:SetDuration(1)
 
+-- Blacklist section
+
+local blacklistBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
+blacklistBox:SetPoint("TOPLEFT", tabardStalkerBox, "BOTTOMLEFT", 0, -16)
+blacklistBox:SetSize(420, 420)
+blacklistBox:SetBackdrop({
+	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	tile = true,
+	tileSize = 32,
+	edgeSize = 16,
+	insets = { left = 4, right = 4, top = 4, bottom = 4 },
+})
+blacklistBox:SetBackdropColor(0, 0, 0, 0.5)
+
+local lblBlacklistSection = blacklistBox:CreateFontString(nil, nil, "GameFontNormalLarge")
+lblBlacklistSection:SetPoint("TOPLEFT", blacklistBox, "TOPLEFT", 12, -8)
+lblBlacklistSection:SetText(L["Blacklist"])
+
+local lblBlacklistHint = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblBlacklistHint:SetPoint("TOPLEFT", lblBlacklistSection, "BOTTOMLEFT", 0, -4)
+lblBlacklistHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblBlacklistHint:SetJustifyH("LEFT")
+lblBlacklistHint:SetSpacing(3)
+lblBlacklistHint:SetText(L["Blacklist hint"])
+
+local blacklistDetailControls = {}
+local blacklistInputControls = {}
+
+local function BindBlacklistCheckbox(checkbox, configKey, onChange)
+	checkbox:SetScript("OnUpdate", function(frame)
+		if not MGTConfig then
+			return
+		end
+		frame:SetChecked(MGTConfig[configKey] == "ENABLED")
+	end)
+	checkbox:SetScript("OnClick", function(frame)
+		if not MGTConfig then
+			return
+		end
+		MGTConfig[configKey] = frame:GetChecked() and "ENABLED" or "DISABLED"
+		if onChange then
+			onChange()
+		end
+	end)
+end
+
+local function ScrollBlacklistIntoView()
+	if not optionsScroll or not blacklistBox then
+		return
+	end
+	local scrollRange = optionsScroll:GetVerticalScrollRange()
+	if scrollRange and scrollRange > 0 then
+		optionsScroll:SetVerticalScroll(scrollRange)
+	end
+end
+
+local chkBlacklistEnabled = CreateFrame("CheckButton", nil, blacklistBox, "OptionsBaseCheckButtonTemplate")
+chkBlacklistEnabled:SetPoint("TOPLEFT", lblBlacklistHint, "BOTTOMLEFT", 0, -8)
+BindBlacklistCheckbox(chkBlacklistEnabled, "BlacklistEnabled", function()
+	if AddonTable.SetBlacklistActive then
+		AddonTable.SetBlacklistActive(MGTConfig.BlacklistEnabled == "ENABLED")
+	end
+	if AddonTable.RefreshBlacklistOptionsUI then
+		AddonTable.RefreshBlacklistOptionsUI()
+	end
+	if MGTConfig.BlacklistEnabled == "ENABLED" then
+		ScrollBlacklistIntoView()
+	end
+end)
+
+local lblBlacklistEnabled = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblBlacklistEnabled:SetPoint("LEFT", chkBlacklistEnabled, "RIGHT", 0, 1)
+lblBlacklistEnabled:SetText(L["Enable blacklist"])
+
+local function CreateBlacklistDetailCheckbox(anchor, configKey, labelText, onChange)
+	local checkbox = CreateFrame("CheckButton", nil, blacklistBox, "OptionsBaseCheckButtonTemplate")
+	checkbox:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
+	BindBlacklistCheckbox(checkbox, configKey, onChange)
+	local label = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+	label:SetPoint("LEFT", checkbox, "RIGHT", 0, 1)
+	label:SetText(labelText)
+	blacklistDetailControls[#blacklistDetailControls + 1] = checkbox
+	blacklistDetailControls[#blacklistDetailControls + 1] = label
+	return checkbox
+end
+
+local chkBlacklistAlertWhisper = CreateBlacklistDetailCheckbox(chkBlacklistEnabled, "BlacklistAlertWhisper", L["Blacklist alert whisper"])
+local chkBlacklistAlertGroup = CreateBlacklistDetailCheckbox(chkBlacklistAlertWhisper, "BlacklistAlertGroup", L["Blacklist alert group"])
+local chkBlacklistAlertTrade = CreateBlacklistDetailCheckbox(chkBlacklistAlertGroup, "BlacklistAlertTrade", L["Blacklist alert trade"])
+local chkBlacklistAlertProximity = CreateBlacklistDetailCheckbox(chkBlacklistAlertTrade, "BlacklistAlertProximity", L["Blacklist alert proximity"])
+local chkBlacklistPlaySound = CreateBlacklistDetailCheckbox(chkBlacklistAlertProximity, "BlacklistPlaySound", L["Blacklist play sound"])
+local chkBlacklistAutoBlock = CreateBlacklistDetailCheckbox(chkBlacklistPlaySound, "BlacklistAutoBlock", L["Blacklist auto block"])
+local chkBlacklistFuzzy = CreateBlacklistDetailCheckbox(chkBlacklistAutoBlock, "BlacklistFuzzyMatch", L["Blacklist fuzzy match"])
+
+local lblBlacklistFuzzyHint = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblBlacklistFuzzyHint:SetPoint("TOPLEFT", chkBlacklistFuzzy, "BOTTOMLEFT", 16, -4)
+lblBlacklistFuzzyHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblBlacklistFuzzyHint:SetJustifyH("LEFT")
+lblBlacklistFuzzyHint:SetSpacing(3)
+lblBlacklistFuzzyHint:SetText(L["Blacklist fuzzy hint"])
+blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistFuzzyHint
+
+local lblBlacklistAddHeading = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblBlacklistAddHeading:SetPoint("TOPLEFT", lblBlacklistFuzzyHint, "BOTTOMLEFT", -16, -10)
+lblBlacklistAddHeading:SetText(L["Blacklist name placeholder"] .. ":")
+blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistAddHeading
+
+local editBlacklistName = CreateFrame("EditBox", nil, blacklistBox, "InputBoxTemplate")
+editBlacklistName:SetSize(220, 20)
+editBlacklistName:SetPoint("TOPLEFT", lblBlacklistAddHeading, "BOTTOMLEFT", 0, -4)
+editBlacklistName:SetAutoFocus(false)
+editBlacklistName:SetMaxLetters(24)
+
+local btnBlacklistAdd = CreateFrame("Button", nil, blacklistBox, "UIPanelButtonTemplate")
+btnBlacklistAdd:SetSize(80, 22)
+btnBlacklistAdd:SetPoint("LEFT", editBlacklistName, "RIGHT", 8, 0)
+btnBlacklistAdd:SetText(L["Blacklist add name"])
+
+local lblBlacklistStatus = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblBlacklistStatus:SetPoint("TOPLEFT", editBlacklistName, "BOTTOMLEFT", 0, -4)
+lblBlacklistStatus:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblBlacklistStatus:SetJustifyH("LEFT")
+lblBlacklistStatus:SetHeight(16)
+lblBlacklistStatus:SetText("")
+
+local blacklistListBg = CreateFrame("Frame", nil, blacklistBox, "BackdropTemplate")
+blacklistListBg:SetPoint("TOPLEFT", lblBlacklistStatus, "BOTTOMLEFT", -4, -6)
+blacklistListBg:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+blacklistListBg:SetHeight(124)
+blacklistListBg:SetBackdrop({
+	bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+	tile = true,
+	tileSize = 16,
+	edgeSize = 12,
+	insets = { left = 3, right = 3, top = 3, bottom = 3 },
+})
+blacklistListBg:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
+blacklistListBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.9)
+
+local blacklistListScroll = CreateFrame("ScrollFrame", "MGTBlacklistListScroll", blacklistListBg, "UIPanelScrollFrameTemplate")
+blacklistListScroll:SetPoint("TOPLEFT", blacklistListBg, "TOPLEFT", 6, -6)
+blacklistListScroll:SetPoint("BOTTOMRIGHT", blacklistListBg, "BOTTOMRIGHT", -26, 6)
+
+local blacklistListChild = CreateFrame("Frame", nil, blacklistListScroll)
+blacklistListChild:SetWidth(360)
+blacklistListChild:SetHeight(120)
+blacklistListScroll:SetScrollChild(blacklistListChild)
+
+local blacklistListRows = {}
+
+blacklistInputControls[#blacklistInputControls + 1] = lblBlacklistAddHeading
+blacklistInputControls[#blacklistInputControls + 1] = editBlacklistName
+blacklistInputControls[#blacklistInputControls + 1] = btnBlacklistAdd
+blacklistInputControls[#blacklistInputControls + 1] = lblBlacklistStatus
+blacklistInputControls[#blacklistInputControls + 1] = blacklistListBg
+blacklistInputControls[#blacklistInputControls + 1] = blacklistListScroll
+
+local function SetBlacklistStatusMessage(text)
+	lblBlacklistStatus:SetText(text or "")
+end
+
+local function RefreshBlacklistDetailVisibility()
+	local active = MGTConfig and MGTConfig.BlacklistEnabled == "ENABLED"
+	for _, control in ipairs(blacklistDetailControls) do
+		control:Show()
+		if control.SetAlpha then
+			control:SetAlpha(active and 1 or 0.85)
+		end
+	end
+	for _, control in ipairs(blacklistInputControls) do
+		control:Show()
+		if control.SetAlpha then
+			control:SetAlpha(1)
+		end
+		if control.Enable then
+			control:Enable()
+		end
+	end
+end
+
+local function ClearBlacklistListRows()
+	for _, row in ipairs(blacklistListRows) do
+		row:Hide()
+		row:SetParent(nil)
+	end
+	wipe(blacklistListRows)
+	if blacklistListChild.GetChildren then
+		for _, child in ipairs({ blacklistListChild:GetChildren() }) do
+			child:Hide()
+			child:SetParent(nil)
+		end
+	end
+end
+
+local function RefreshBlacklistListUI()
+	ClearBlacklistListRows()
+
+	if not AddonTable.GetBlacklistNames then
+		return
+	end
+
+	local names = AddonTable.GetBlacklistNames()
+	local rowHeight = 22
+	local totalHeight = math.max(120, #names * rowHeight + 4)
+	blacklistListChild:SetHeight(totalHeight)
+
+	if #names == 0 then
+		local empty = blacklistListChild:CreateFontString(nil, nil, "GameFontDisable")
+		empty:SetPoint("TOPLEFT", blacklistListChild, "TOPLEFT", 4, -4)
+		empty:SetText(L["Blacklist empty list"])
+		blacklistListRows[#blacklistListRows + 1] = empty
+		return
+	end
+
+	for index, name in ipairs(names) do
+		local row = CreateFrame("Frame", nil, blacklistListChild)
+		row:SetSize(360, rowHeight)
+		row:SetPoint("TOPLEFT", blacklistListChild, "TOPLEFT", 0, -((index - 1) * rowHeight))
+
+		local lblName = row:CreateFontString(nil, nil, "GameFontHighlight")
+		lblName:SetPoint("LEFT", row, "LEFT", 4, 0)
+		lblName:SetText(name)
+
+		local btnRemove = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+		btnRemove:SetSize(70, 20)
+		btnRemove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+		btnRemove:SetText(L["Blacklist remove"])
+		btnRemove:SetScript("OnClick", function()
+			if AddonTable.RemoveBlacklistName(index) then
+				SetBlacklistStatusMessage(string.format(L["Blacklist removed"], name))
+				RefreshBlacklistListUI()
+				if UpdateBlacklistBoxHeight then
+					UpdateBlacklistBoxHeight()
+				end
+				if UpdateOptionsScrollHeight then
+					UpdateOptionsScrollHeight()
+				end
+			end
+		end)
+
+		blacklistListRows[#blacklistListRows + 1] = row
+	end
+end
+
+local function TryAddBlacklistName()
+	if not AddonTable.AddBlacklistName then
+		return
+	end
+	local rawName = editBlacklistName:GetText() or ""
+	local ok, reason = AddonTable.AddBlacklistName(rawName)
+	if ok then
+		editBlacklistName:SetText("")
+		local names = AddonTable.GetBlacklistNames()
+		local addedName = names[#names] or rawName
+		SetBlacklistStatusMessage(string.format(L["Blacklist added"], addedName))
+		RefreshBlacklistListUI()
+	elseif reason == "duplicate" then
+		SetBlacklistStatusMessage(string.format(L["Blacklist duplicate"], rawName))
+	elseif reason == "full" then
+		SetBlacklistStatusMessage(string.format(L["Blacklist list full"], 64))
+	else
+		SetBlacklistStatusMessage("")
+	end
+	if UpdateBlacklistBoxHeight then
+		UpdateBlacklistBoxHeight()
+	end
+	if UpdateOptionsScrollHeight then
+		UpdateOptionsScrollHeight()
+	end
+end
+
+btnBlacklistAdd:SetScript("OnClick", TryAddBlacklistName)
+editBlacklistName:SetScript("OnEnterPressed", function(self)
+	TryAddBlacklistName()
+	self:ClearFocus()
+end)
+
+function AddonTable.RefreshBlacklistOptionsUI()
+	if AddonTable.EnsureMGTBlacklistConfig then
+		AddonTable.EnsureMGTBlacklistConfig()
+	end
+	if MGTConfig then
+		chkBlacklistEnabled:SetChecked(MGTConfig.BlacklistEnabled == "ENABLED")
+	end
+	RefreshBlacklistDetailVisibility()
+	RefreshBlacklistListUI()
+	if not MGTConfig or MGTConfig.BlacklistEnabled ~= "ENABLED" then
+		SetBlacklistStatusMessage("")
+	end
+	if UpdateBlacklistBoxHeight then
+		UpdateBlacklistBoxHeight()
+	end
+	if UpdateOptionsScrollHeight then
+		UpdateOptionsScrollHeight()
+	end
+end
+
+local function UpdateBlacklistBoxHeight()
+	local hintH = math.max(lblBlacklistHint:GetStringHeight() or 0, lblBlacklistHint:GetHeight() or 0, 14)
+	local fuzzyHintH = math.max(lblBlacklistFuzzyHint:GetStringHeight() or 0, lblBlacklistFuzzyHint:GetHeight() or 0, 14)
+	local statusH = math.max(lblBlacklistStatus:GetStringHeight() or 0, lblBlacklistStatus:GetHeight() or 0, 16)
+	local h = 8 + 16 + 4 + hintH + 8 + 22
+		+ (7 * 18) + 4 + fuzzyHintH + 10 + 14 + 4 + 22 + 4 + statusH + 6 + 124 + 16
+	blacklistBox:SetHeight(h)
+end
+
 local function UpdateTabardStalkerBoxHeight()
 	local statusH = math.max(lblTabardScanStatus:GetStringHeight() or 0, lblTabardScanStatus:GetHeight() or 28, 28)
 	local hintH = math.max(lblTabardStalkerHint:GetStringHeight() or 0, 14)
@@ -818,7 +1249,8 @@ end
 
 local function UpdateOptionsScrollHeight()
 	UpdateTabardStalkerBoxHeight()
-	local height = tooltipBox:GetHeight() + guildInviteBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + 48
+	UpdateBlacklistBoxHeight()
+	local height = tooltipBox:GetHeight() + invitationsBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + blacklistBox:GetHeight() + 64
 	optionsScrollChild:SetHeight(height)
 end
 
@@ -920,14 +1352,32 @@ optionsScrollChild:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
+	RefreshGuildInviteOptionsUI()
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
+	if AddonTable.RefreshBlacklistOptionsUI then
+		AddonTable.RefreshBlacklistOptionsUI()
+	end
 end)
 GTIOFrame:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
+	RefreshGuildInviteOptionsUI()
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
+	if AddonTable.RefreshBlacklistOptionsUI then
+		AddonTable.RefreshBlacklistOptionsUI()
+	end
 end)
 UpdateOptionsScrollHeight()
 RefreshHonorGuildDeathUI()
+RefreshGuildInviteOptionsUI()
+if AddonTable.RefreshBlacklistOptionsUI then
+	AddonTable.RefreshBlacklistOptionsUI()
+end
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)
