@@ -32,15 +32,16 @@ end
 function AddonTable.EnsureMGTCharConfig()
 	MGTCharConfig = MGTCharConfig or {}
 	if MGTCharConfig.GuildInviteMenu == nil then
-		MGTCharConfig.GuildInviteMenu = "DISABLED"
+		if MGTConfig and MGTConfig.GuildInviteMenu == "ENABLED" then
+			MGTCharConfig.GuildInviteMenu = "ENABLED"
+		else
+			MGTCharConfig.GuildInviteMenu = "DISABLED"
+		end
 	end
 end
 
 function AddonTable.SyncGuildInviteMenuForCharacter()
 	AddonTable.EnsureMGTCharConfig()
-	if not AddonTable.PlayerCanGuildInvite() then
-		AddonTable.SetGuildInviteMenuSetting("DISABLED")
-	end
 end
 
 function AddonTable.GetGuildInviteMenuSetting()

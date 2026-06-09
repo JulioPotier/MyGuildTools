@@ -1,7 +1,7 @@
 ##Interface: 11508
 ##Author: Kirby2112
 ##Version: 0.2.0
-##SavedVariables: MGTConfig, MGTTabardHasCache, MGTGuildChatLog
+##SavedVariables: MGTConfig, MGTGuildChatLog
 ##SavedVariablesPerCharacter: MGTCharConfig
 ##Title: |cFF0088FFMyGuildTools|r
 ##Title-frFR: |cFF0088FFOutils de guilde|r
@@ -12,7 +12,6 @@ HonorGuildDeath.lua
 GuildInvite.lua
 GroupInviteBlock.lua
 Blacklist.lua
-TabardScan.lua
 ChatTarget.lua
 GuildChatExport.lua
 Options.lua

@@ -70,9 +70,12 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
-	if MGTConfig.BlockGroupInvites == "ENABLED"
-		and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+	if not MGTConfig.GroupInviteLegacyModeMigrated then
+		if MGTConfig.BlockGroupInvites == "ENABLED"
+			and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+			MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
+		end
+		MGTConfig.GroupInviteLegacyModeMigrated = true
 	end
 end
 
@@ -133,6 +136,8 @@ function AddonTable.SetGroupInviteBlockMode(mode)
 	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
 		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
 		MGTConfig.BlockGroupInvites = "ENABLED"
+	elseif mode == AddonTable.GROUP_INVITE_BLOCK_NONE then
+		MGTConfig.BlockGroupInvites = "DISABLED"
 	end
 	AddonTable.UpdateGroupInviteMinimapIcon()
 	AddonTable.RefreshGroupInviteMinimapButton()

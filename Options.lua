@@ -390,6 +390,10 @@ local GROUP_BLOCK_MODE_OPTIONS = {
 
 local groupBlockDropdownInitialized = false
 
+local function OnGroupBlockModeSelected(_, mode)
+	ddGroupBlockMode:SetValue(mode)
+end
+
 local function InitGroupBlockModeDropdown()
 	if groupBlockDropdownInitialized then
 		return
@@ -398,14 +402,14 @@ local function InitGroupBlockModeDropdown()
 	if AddonTable.EnsureMGTGroupInviteConfig then
 		AddonTable.EnsureMGTGroupInviteConfig()
 	end
-	UIDropDownMenu_Initialize(ddGroupBlockMode, function(self, level, menuList)
-		local info = UIDropDownMenu_CreateInfo()
+	UIDropDownMenu_Initialize(ddGroupBlockMode, function(_, level, menuList)
 		local current = AddonTable.GetGroupInviteBlockMode and AddonTable.GetGroupInviteBlockMode()
-		info.func = self.SetValue
 		for _, mode in ipairs(GROUP_BLOCK_MODE_OPTIONS) do
+			local info = UIDropDownMenu_CreateInfo()
 			info.text = AddonTable.GetGroupInviteBlockModeLabel(mode)
 			info.arg1 = mode
 			info.checked = (mode == current)
+			info.func = OnGroupBlockModeSelected
 			UIDropDownMenu_AddButton(info)
 		end
 	end)
@@ -504,16 +508,16 @@ local function RefreshGuildInviteOptionsUI()
 		AddonTable.SyncGuildInviteMenuForCharacter()
 	end
 
+	local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
+	local wantsEnabled = setting == "ENABLED"
 	local canUse = AddonTable.PlayerCanGuildInvite and AddonTable.PlayerCanGuildInvite()
+	checkbox:SetChecked(wantsEnabled)
 	if canUse then
 		checkbox:Enable()
 		label:SetTextColor(1, 0.82, 0)
 		hint:SetTextColor(0.5, 0.5, 0.5)
-		local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
-		checkbox:SetChecked(setting == "ENABLED")
 	else
 		checkbox:Disable()
-		checkbox:SetChecked(false)
 		label:SetTextColor(0.5, 0.5, 0.5)
 		hint:SetTextColor(0.35, 0.35, 0.35)
 	end
@@ -526,8 +530,8 @@ guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
 		return
 	end
 	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
-		frame:SetChecked(false)
-		AddonTable.SetGuildInviteMenuSetting("DISABLED")
+		local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
+		frame:SetChecked(setting == "ENABLED")
 		if not IsInGuild or not IsInGuild() then
 			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You are not in a guild."])
 		else
@@ -765,179 +769,20 @@ honorGuildDeathWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
 honorGuildDeathWatcher:RegisterEvent("CHAT_MSG_CHANNEL_NOTICE")
 honorGuildDeathWatcher:SetScript("OnEvent", RefreshHonorGuildDeathUI)
 
--- Tabard Stalker
-
-local tabardStalkerBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-tabardStalkerBox:SetPoint("TOPLEFT", honorGuildDeathBox, "BOTTOMLEFT", 0, -16)
-tabardStalkerBox:SetSize(420, 196)
-if tabardStalkerBox.SetClipsChildren then
-	tabardStalkerBox:SetClipsChildren(true)
-end
-tabardStalkerBox:SetBackdrop({
-	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-	tile = true,
-	tileSize = 32,
-	edgeSize = 16,
-	insets = { left = 4, right = 4, top = 4, bottom = 4 },
-})
-tabardStalkerBox:SetBackdropColor(0, 0, 0, 0.5)
-
-local lblTabardStalkerSection = tabardStalkerBox:CreateFontString(nil, nil, "GameFontNormalLarge")
-lblTabardStalkerSection:SetPoint("TOPLEFT", tabardStalkerBox, "TOPLEFT", 12, -8)
-lblTabardStalkerSection:SetText(L["Tabard Stalker"])
-
-local lblTabardStalkerHint = tabardStalkerBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblTabardStalkerHint:SetPoint("TOPLEFT", lblTabardStalkerSection, "BOTTOMLEFT", 0, -4)
-lblTabardStalkerHint:SetPoint("RIGHT", tabardStalkerBox, "RIGHT", -12, 0)
-lblTabardStalkerHint:SetJustifyH("LEFT")
-lblTabardStalkerHint:SetText(L["Tabard scan (party/raid)"])
-
-local chkTabardGuildOnly = CreateFrame("CheckButton", nil, tabardStalkerBox, "OptionsBaseCheckButtonTemplate")
-chkTabardGuildOnly:SetPoint("TOPLEFT", lblTabardStalkerHint, "BOTTOMLEFT", 0, -8)
-
-chkTabardGuildOnly:SetScript("OnUpdate", function(frame)
-	if not MGTConfig then
-		return
-	end
-	if MGTConfig.TabardStalkerGuildOnly == "ENABLED" then
-		frame:SetChecked(true)
-	elseif MGTConfig.TabardStalkerGuildOnly == "DISABLED" then
-		frame:SetChecked(false)
-	end
-end)
-
-chkTabardGuildOnly:SetScript("OnClick", function(frame)
-	if not MGTConfig then
-		return
-	end
-	if frame:GetChecked() then
-		MGTConfig.TabardStalkerGuildOnly = "ENABLED"
-	else
-		MGTConfig.TabardStalkerGuildOnly = "DISABLED"
-	end
-end)
-
-local chkTabardGuildOnlyText = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkTabardGuildOnlyText:SetPoint("LEFT", chkTabardGuildOnly, "RIGHT", 0, 1)
-chkTabardGuildOnlyText:SetText(L["Only for guildies"])
-
-local lblTabardMinLevel = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
-lblTabardMinLevel:SetPoint("TOPLEFT", chkTabardGuildOnly, "BOTTOMLEFT", 0, -8)
-lblTabardMinLevel:SetText(L["Minimum level:"])
-
-local editTabardMinLevel = CreateFrame("EditBox", nil, tabardStalkerBox, "InputBoxTemplate")
-editTabardMinLevel:SetSize(48, 20)
-editTabardMinLevel:SetPoint("LEFT", lblTabardMinLevel, "RIGHT", 8, 0)
-editTabardMinLevel:SetAutoFocus(false)
-editTabardMinLevel:SetNumeric(true)
-editTabardMinLevel:SetMaxLetters(2)
-
-editTabardMinLevel:SetScript("OnShow", function(self)
-	if MGTConfig and MGTConfig.TabardStalkerMinLevel then
-		self:SetText(MGTConfig.TabardStalkerMinLevel)
-	else
-		self:SetText("40")
-	end
-end)
-
-editTabardMinLevel:SetScript("OnEditFocusLost", function(self)
-	if not MGTConfig then
-		return
-	end
-	local level = tonumber(self:GetText())
-	if not level or level < 1 then
-		level = 1
-	elseif level > 60 then
-		level = 60
-	end
-	MGTConfig.TabardStalkerMinLevel = tostring(level)
-	self:SetText(MGTConfig.TabardStalkerMinLevel)
-end)
-
-editTabardMinLevel:SetScript("OnEnterPressed", function(self)
-	self:ClearFocus()
-end)
-
-editTabardMinLevel:SetScript("OnEscapePressed", function(self)
-	if MGTConfig and MGTConfig.TabardStalkerMinLevel then
-		self:SetText(MGTConfig.TabardStalkerMinLevel)
-	else
-		self:SetText("40")
-	end
-	self:ClearFocus()
-end)
-
-local chkTabardAutoScan = CreateFrame("CheckButton", nil, tabardStalkerBox, "OptionsBaseCheckButtonTemplate")
-chkTabardAutoScan:SetPoint("TOPLEFT", lblTabardMinLevel, "BOTTOMLEFT", 0, -8)
-
-chkTabardAutoScan:SetScript("OnUpdate", function(frame)
-	if not MGTConfig then
-		return
-	end
-	if MGTConfig.TabardStalkerAutoScan == "ENABLED" then
-		frame:SetChecked(true)
-	elseif MGTConfig.TabardStalkerAutoScan == "DISABLED" then
-		frame:SetChecked(false)
-	end
-end)
-
-chkTabardAutoScan:SetScript("OnClick", function(frame)
-	if not MGTConfig then
-		return
-	end
-	if frame:GetChecked() then
-		MGTConfig.TabardStalkerAutoScan = "ENABLED"
-	else
-		MGTConfig.TabardStalkerAutoScan = "DISABLED"
-	end
-end)
-
-local chkTabardAutoScanText = tabardStalkerBox:CreateFontString(nil, nil, "GameFontHighlight")
-chkTabardAutoScanText:SetPoint("LEFT", chkTabardAutoScan, "RIGHT", 0, 1)
-chkTabardAutoScanText:SetText(L["Auto scan when grouping"])
-
-local btnScanTabards = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
-btnScanTabards:SetSize(160, 22)
-btnScanTabards:SetPoint("TOPLEFT", chkTabardAutoScan, "BOTTOMLEFT", 0, -8)
-btnScanTabards:SetText(L["Scan group tabards"])
-
-local btnResetTabardCache = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
-btnResetTabardCache:SetSize(140, 22)
-btnResetTabardCache:SetPoint("LEFT", btnScanTabards, "RIGHT", 8, 0)
-btnResetTabardCache:SetText(L["Reset tabard data"])
-
-local btnAnnounceTabards = CreateFrame("Button", nil, tabardStalkerBox, "UIPanelButtonTemplate")
-btnAnnounceTabards:SetSize(308, 22)
-btnAnnounceTabards:SetPoint("TOPLEFT", btnScanTabards, "BOTTOMLEFT", 0, -4)
-btnAnnounceTabards:SetText(L["Announce missing tabards in /say"])
-btnAnnounceTabards:Disable()
-
-local lblTabardScanStatus = tabardStalkerBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblTabardScanStatus:SetPoint("TOPLEFT", btnAnnounceTabards, "BOTTOMLEFT", 0, -4)
-lblTabardScanStatus:SetPoint("RIGHT", tabardStalkerBox, "RIGHT", -12, 0)
-lblTabardScanStatus:SetJustifyH("LEFT")
-lblTabardScanStatus:SetHeight(28)
-lblTabardScanStatus:SetText("")
-
-local tabardScanSpinner = tabardStalkerBox:CreateTexture(nil, "ARTWORK")
-tabardScanSpinner:SetSize(16, 16)
-tabardScanSpinner:SetPoint("RIGHT", lblTabardScanStatus, "LEFT", -4, 0)
-tabardScanSpinner:SetTexture("Interface\\ChatFrame\\UI-ChatLoadingIcon")
-tabardScanSpinner:SetTexCoord(0, 0.25, 0, 1)
-tabardScanSpinner:Hide()
-
-local tabardSpinnerAnim = tabardScanSpinner:CreateAnimationGroup()
-tabardSpinnerAnim:SetLooping("REPEAT")
-local tabardSpinnerRotate = tabardSpinnerAnim:CreateAnimation("Rotation")
-tabardSpinnerRotate:SetDegrees(360)
-tabardSpinnerRotate:SetDuration(1)
-
 -- Blacklist section
 
+local BLACKLIST_BOX_BOTTOM_PAD = 16
+local BLACKLIST_DETAIL_CHECKBOX_COUNT = 10
+local BLACKLIST_SYNC_EXTRA_ROWS = 3
+local BLACKLIST_CHECKBOX_ROW = 26
+local BLACKLIST_BTN_HEIGHT = 22
+local BLACKLIST_BTN_TOP_GAP = 12
+local BLACKLIST_SYNC_TOP_GAP = 10
+local BLACKLIST_MIN_BOX_HEIGHT = 580
+
 local blacklistBox = CreateFrame("Frame", nil, optionsScrollChild, "BackdropTemplate")
-blacklistBox:SetPoint("TOPLEFT", tabardStalkerBox, "BOTTOMLEFT", 0, -16)
-blacklistBox:SetSize(420, 420)
+blacklistBox:SetPoint("TOPLEFT", honorGuildDeathBox, "BOTTOMLEFT", 0, -16)
+blacklistBox:SetSize(420, BLACKLIST_MIN_BOX_HEIGHT)
 blacklistBox:SetBackdrop({
 	bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -957,10 +802,10 @@ lblBlacklistHint:SetPoint("TOPLEFT", lblBlacklistSection, "BOTTOMLEFT", 0, -4)
 lblBlacklistHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
 lblBlacklistHint:SetJustifyH("LEFT")
 lblBlacklistHint:SetSpacing(3)
+lblBlacklistHint:SetWordWrap(true)
 lblBlacklistHint:SetText(L["Blacklist hint"])
 
 local blacklistDetailControls = {}
-local blacklistInputControls = {}
 
 local function BindBlacklistCheckbox(checkbox, configKey, onChange)
 	checkbox:SetScript("OnUpdate", function(frame)
@@ -1025,76 +870,158 @@ local chkBlacklistAlertGroup = CreateBlacklistDetailCheckbox(chkBlacklistAlertWh
 local chkBlacklistAlertTrade = CreateBlacklistDetailCheckbox(chkBlacklistAlertGroup, "BlacklistAlertTrade", L["Blacklist alert trade"])
 local chkBlacklistAlertProximity = CreateBlacklistDetailCheckbox(chkBlacklistAlertTrade, "BlacklistAlertProximity", L["Blacklist alert proximity"])
 local chkBlacklistPlaySound = CreateBlacklistDetailCheckbox(chkBlacklistAlertProximity, "BlacklistPlaySound", L["Blacklist play sound"])
-local chkBlacklistAutoBlock = CreateBlacklistDetailCheckbox(chkBlacklistPlaySound, "BlacklistAutoBlock", L["Blacklist auto block"])
-local chkBlacklistFuzzy = CreateBlacklistDetailCheckbox(chkBlacklistAutoBlock, "BlacklistFuzzyMatch", L["Blacklist fuzzy match"])
+local chkBlacklistChatAlert = CreateBlacklistDetailCheckbox(chkBlacklistPlaySound, "BlacklistChatAlert", L["Blacklist chat alert"])
+local chkBlacklistRaidScreenAlert = CreateBlacklistDetailCheckbox(chkBlacklistChatAlert, "BlacklistRaidScreenAlert", L["Blacklist raid screen alert"])
+local chkBlacklistAutoBlock = CreateBlacklistDetailCheckbox(chkBlacklistRaidScreenAlert, "BlacklistAutoBlock", L["Blacklist auto block"])
+local chkBlacklistAlertNameplate = CreateBlacklistDetailCheckbox(chkBlacklistAutoBlock, "BlacklistAlertNameplate", L["Blacklist alert nameplate"], function()
+	if AddonTable.RefreshBlacklistWatcher then
+		AddonTable.RefreshBlacklistWatcher()
+	end
+end)
+
+local lblBlacklistNameplateHint = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblBlacklistNameplateHint:SetPoint("TOPLEFT", chkBlacklistAlertNameplate, "BOTTOMLEFT", 16, -4)
+lblBlacklistNameplateHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblBlacklistNameplateHint:SetJustifyH("LEFT")
+lblBlacklistNameplateHint:SetSpacing(3)
+lblBlacklistNameplateHint:SetWordWrap(true)
+lblBlacklistNameplateHint:SetText(L["Blacklist nameplate hint"])
+blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistNameplateHint
+
+local chkBlacklistFuzzy = CreateFrame("CheckButton", nil, blacklistBox, "OptionsBaseCheckButtonTemplate")
+chkBlacklistFuzzy:SetPoint("TOPLEFT", lblBlacklistNameplateHint, "BOTTOMLEFT", -16, -6)
+BindBlacklistCheckbox(chkBlacklistFuzzy, "BlacklistFuzzyMatch")
+local lblBlacklistFuzzy = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblBlacklistFuzzy:SetPoint("LEFT", chkBlacklistFuzzy, "RIGHT", 0, 1)
+lblBlacklistFuzzy:SetText(L["Blacklist fuzzy match"])
+blacklistDetailControls[#blacklistDetailControls + 1] = chkBlacklistFuzzy
+blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistFuzzy
 
 local lblBlacklistFuzzyHint = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
 lblBlacklistFuzzyHint:SetPoint("TOPLEFT", chkBlacklistFuzzy, "BOTTOMLEFT", 16, -4)
 lblBlacklistFuzzyHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
 lblBlacklistFuzzyHint:SetJustifyH("LEFT")
 lblBlacklistFuzzyHint:SetSpacing(3)
+lblBlacklistFuzzyHint:SetWordWrap(true)
 lblBlacklistFuzzyHint:SetText(L["Blacklist fuzzy hint"])
 blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistFuzzyHint
 
-local lblBlacklistAddHeading = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
-lblBlacklistAddHeading:SetPoint("TOPLEFT", lblBlacklistFuzzyHint, "BOTTOMLEFT", -16, -10)
-lblBlacklistAddHeading:SetText(L["Blacklist name placeholder"] .. ":")
-blacklistDetailControls[#blacklistDetailControls + 1] = lblBlacklistAddHeading
+local btnBlacklistOpenIgnore = CreateFrame("Button", nil, blacklistBox, "UIPanelButtonTemplate")
+btnBlacklistOpenIgnore:SetSize(200, 22)
+btnBlacklistOpenIgnore:SetPoint("TOPLEFT", lblBlacklistFuzzyHint, "BOTTOMLEFT", -16, -10)
+btnBlacklistOpenIgnore:SetText(L["Blacklist open ignore list"])
+btnBlacklistOpenIgnore:SetScript("OnClick", function()
+	if AddonTable.OpenIgnoreList then
+		AddonTable.OpenIgnoreList()
+	end
+end)
 
-local editBlacklistName = CreateFrame("EditBox", nil, blacklistBox, "InputBoxTemplate")
-editBlacklistName:SetSize(220, 20)
-editBlacklistName:SetPoint("TOPLEFT", lblBlacklistAddHeading, "BOTTOMLEFT", 0, -4)
-editBlacklistName:SetAutoFocus(false)
-editBlacklistName:SetMaxLetters(24)
+local chkIgnoreListSync = CreateFrame("CheckButton", nil, blacklistBox, "OptionsBaseCheckButtonTemplate")
+chkIgnoreListSync:SetPoint("TOPLEFT", btnBlacklistOpenIgnore, "BOTTOMLEFT", 0, -BLACKLIST_SYNC_TOP_GAP)
+chkIgnoreListSync:SetScript("OnClick", function(frame)
+	if not MGTConfig or not AddonTable.SetIgnoreListSyncEnabled then
+		return
+	end
+	AddonTable.SetIgnoreListSyncEnabled(frame:GetChecked())
+end)
 
-local btnBlacklistAdd = CreateFrame("Button", nil, blacklistBox, "UIPanelButtonTemplate")
-btnBlacklistAdd:SetSize(80, 22)
-btnBlacklistAdd:SetPoint("LEFT", editBlacklistName, "RIGHT", 8, 0)
-btnBlacklistAdd:SetText(L["Blacklist add name"])
+local lblIgnoreListSync = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblIgnoreListSync:SetPoint("LEFT", chkIgnoreListSync, "RIGHT", 0, 1)
+lblIgnoreListSync:SetText(L["Ignore list sync main"])
 
-local lblBlacklistStatus = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-lblBlacklistStatus:SetPoint("TOPLEFT", editBlacklistName, "BOTTOMLEFT", 0, -4)
-lblBlacklistStatus:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
-lblBlacklistStatus:SetJustifyH("LEFT")
-lblBlacklistStatus:SetHeight(16)
-lblBlacklistStatus:SetText("")
+local lblIgnoreListSyncAlt = blacklistBox:CreateFontString(nil, nil, "GameFontDisable")
+lblIgnoreListSyncAlt:SetPoint("TOPLEFT", btnBlacklistOpenIgnore, "BOTTOMLEFT", 0, -BLACKLIST_SYNC_TOP_GAP)
+lblIgnoreListSyncAlt:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblIgnoreListSyncAlt:SetJustifyH("LEFT")
+lblIgnoreListSyncAlt:Hide()
 
-local blacklistListBg = CreateFrame("Frame", nil, blacklistBox, "BackdropTemplate")
-blacklistListBg:SetPoint("TOPLEFT", lblBlacklistStatus, "BOTTOMLEFT", -4, -6)
-blacklistListBg:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
-blacklistListBg:SetHeight(124)
-blacklistListBg:SetBackdrop({
-	bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-	tile = true,
-	tileSize = 16,
-	edgeSize = 12,
-	insets = { left = 3, right = 3, top = 3, bottom = 3 },
-})
-blacklistListBg:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
-blacklistListBg:SetBackdropBorderColor(0.4, 0.4, 0.4, 0.9)
+local chkIgnoreListSyncLoginApply = CreateFrame("CheckButton", nil, blacklistBox, "OptionsBaseCheckButtonTemplate")
+chkIgnoreListSyncLoginApply:SetPoint("TOPLEFT", chkIgnoreListSync, "BOTTOMLEFT", 0, -4)
+BindBlacklistCheckbox(chkIgnoreListSyncLoginApply, "IgnoreListSyncLoginApply", function()
+	if AddonTable.RefreshIgnoreListSyncUI then
+		AddonTable.RefreshIgnoreListSyncUI()
+	end
+end)
 
-local blacklistListScroll = CreateFrame("ScrollFrame", "MGTBlacklistListScroll", blacklistListBg, "UIPanelScrollFrameTemplate")
-blacklistListScroll:SetPoint("TOPLEFT", blacklistListBg, "TOPLEFT", 6, -6)
-blacklistListScroll:SetPoint("BOTTOMRIGHT", blacklistListBg, "BOTTOMRIGHT", -26, 6)
+local lblIgnoreListSyncLoginApply = blacklistBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblIgnoreListSyncLoginApply:SetPoint("LEFT", chkIgnoreListSyncLoginApply, "RIGHT", 0, 1)
+lblIgnoreListSyncLoginApply:SetText(L["Ignore list sync login apply"])
 
-local blacklistListChild = CreateFrame("Frame", nil, blacklistListScroll)
-blacklistListChild:SetWidth(360)
-blacklistListChild:SetHeight(120)
-blacklistListScroll:SetScrollChild(blacklistListChild)
+local lblIgnoreListSyncStatus = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblIgnoreListSyncStatus:SetPoint("TOPLEFT", chkIgnoreListSyncLoginApply, "BOTTOMLEFT", 16, -4)
+lblIgnoreListSyncStatus:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblIgnoreListSyncStatus:SetJustifyH("LEFT")
+lblIgnoreListSyncStatus:SetSpacing(2)
+lblIgnoreListSyncStatus:SetWordWrap(true)
 
-local blacklistListRows = {}
+local lblIgnoreListSyncAltHint = blacklistBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblIgnoreListSyncAltHint:SetPoint("TOPLEFT", lblIgnoreListSyncStatus, "BOTTOMLEFT", 0, -4)
+lblIgnoreListSyncAltHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+lblIgnoreListSyncAltHint:SetJustifyH("LEFT")
+lblIgnoreListSyncAltHint:SetSpacing(2)
+lblIgnoreListSyncAltHint:SetWordWrap(true)
+lblIgnoreListSyncAltHint:SetText(L["Ignore list sync alt reset hint"])
+lblIgnoreListSyncAltHint:Hide()
 
-blacklistInputControls[#blacklistInputControls + 1] = lblBlacklistAddHeading
-blacklistInputControls[#blacklistInputControls + 1] = editBlacklistName
-blacklistInputControls[#blacklistInputControls + 1] = btnBlacklistAdd
-blacklistInputControls[#blacklistInputControls + 1] = lblBlacklistStatus
-blacklistInputControls[#blacklistInputControls + 1] = blacklistListBg
-blacklistInputControls[#blacklistInputControls + 1] = blacklistListScroll
+function AddonTable.RefreshIgnoreListSyncUI()
+	if AddonTable.EnsureMGTBlacklistConfig then
+		AddonTable.EnsureMGTBlacklistConfig()
+	end
+	if not MGTConfig then
+		return
+	end
 
-local function SetBlacklistStatusMessage(text)
-	lblBlacklistStatus:SetText(text or "")
+	local isAlt = AddonTable.IsCurrentCharacterIgnoreListSyncAlt and AddonTable.IsCurrentCharacterIgnoreListSyncAlt()
+	local syncEnabled = MGTConfig.IgnoreListSyncEnabled == "ENABLED"
+
+	if isAlt then
+		chkIgnoreListSync:Hide()
+		lblIgnoreListSync:Hide()
+		lblIgnoreListSyncAlt:Show()
+		local mainName = AddonTable.GetIgnoreListSyncMainDisplayName and AddonTable.GetIgnoreListSyncMainDisplayName() or "?"
+		lblIgnoreListSyncAlt:SetText(string.format(L["Ignore list sync alt readonly"], mainName))
+		chkIgnoreListSyncLoginApply:Hide()
+		lblIgnoreListSyncLoginApply:Hide()
+		lblIgnoreListSyncAltHint:SetShown(syncEnabled)
+	else
+		lblIgnoreListSyncAltHint:Hide()
+		chkIgnoreListSync:Show()
+		lblIgnoreListSync:Show()
+		lblIgnoreListSyncAlt:Hide()
+		chkIgnoreListSync:SetChecked(syncEnabled)
+		local showLoginApply = syncEnabled
+		chkIgnoreListSyncLoginApply:SetShown(showLoginApply)
+		lblIgnoreListSyncLoginApply:SetShown(showLoginApply)
+		if showLoginApply then
+			chkIgnoreListSyncLoginApply:SetChecked(MGTConfig.IgnoreListSyncLoginApply == "ENABLED")
+		end
+	end
+
+	if AddonTable.GetIgnoreListSyncStatusText then
+		lblIgnoreListSyncStatus:SetText(AddonTable.GetIgnoreListSyncStatusText())
+	end
+	lblIgnoreListSyncStatus:SetShown(syncEnabled)
+	if syncEnabled then
+		lblIgnoreListSyncStatus:ClearAllPoints()
+		if isAlt then
+			lblIgnoreListSyncStatus:SetPoint("TOPLEFT", lblIgnoreListSyncAlt, "BOTTOMLEFT", 0, -4)
+			if syncEnabled then
+				lblIgnoreListSyncAltHint:ClearAllPoints()
+				lblIgnoreListSyncAltHint:SetPoint("TOPLEFT", lblIgnoreListSyncStatus, "BOTTOMLEFT", 0, -4)
+				lblIgnoreListSyncAltHint:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+			end
+		else
+			lblIgnoreListSyncStatus:SetPoint("TOPLEFT", chkIgnoreListSyncLoginApply, "BOTTOMLEFT", 16, -4)
+		end
+		lblIgnoreListSyncStatus:SetPoint("RIGHT", blacklistBox, "RIGHT", -12, 0)
+	end
+
+	if UpdateBlacklistBoxHeight then
+		UpdateBlacklistBoxHeight()
+	end
 end
+
+local UpdateBlacklistBoxHeight
 
 local function RefreshBlacklistDetailVisibility()
 	local active = MGTConfig and MGTConfig.BlacklistEnabled == "ENABLED"
@@ -1104,113 +1031,12 @@ local function RefreshBlacklistDetailVisibility()
 			control:SetAlpha(active and 1 or 0.85)
 		end
 	end
-	for _, control in ipairs(blacklistInputControls) do
-		control:Show()
-		if control.SetAlpha then
-			control:SetAlpha(1)
-		end
-		if control.Enable then
-			control:Enable()
-		end
+	btnBlacklistOpenIgnore:Show()
+	if btnBlacklistOpenIgnore.SetAlpha then
+		btnBlacklistOpenIgnore:SetAlpha(1)
 	end
+	btnBlacklistOpenIgnore:Enable()
 end
-
-local function ClearBlacklistListRows()
-	for _, row in ipairs(blacklistListRows) do
-		row:Hide()
-		row:SetParent(nil)
-	end
-	wipe(blacklistListRows)
-	if blacklistListChild.GetChildren then
-		for _, child in ipairs({ blacklistListChild:GetChildren() }) do
-			child:Hide()
-			child:SetParent(nil)
-		end
-	end
-end
-
-local function RefreshBlacklistListUI()
-	ClearBlacklistListRows()
-
-	if not AddonTable.GetBlacklistNames then
-		return
-	end
-
-	local names = AddonTable.GetBlacklistNames()
-	local rowHeight = 22
-	local totalHeight = math.max(120, #names * rowHeight + 4)
-	blacklistListChild:SetHeight(totalHeight)
-
-	if #names == 0 then
-		local empty = blacklistListChild:CreateFontString(nil, nil, "GameFontDisable")
-		empty:SetPoint("TOPLEFT", blacklistListChild, "TOPLEFT", 4, -4)
-		empty:SetText(L["Blacklist empty list"])
-		blacklistListRows[#blacklistListRows + 1] = empty
-		return
-	end
-
-	for index, name in ipairs(names) do
-		local row = CreateFrame("Frame", nil, blacklistListChild)
-		row:SetSize(360, rowHeight)
-		row:SetPoint("TOPLEFT", blacklistListChild, "TOPLEFT", 0, -((index - 1) * rowHeight))
-
-		local lblName = row:CreateFontString(nil, nil, "GameFontHighlight")
-		lblName:SetPoint("LEFT", row, "LEFT", 4, 0)
-		lblName:SetText(name)
-
-		local btnRemove = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-		btnRemove:SetSize(70, 20)
-		btnRemove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-		btnRemove:SetText(L["Blacklist remove"])
-		btnRemove:SetScript("OnClick", function()
-			if AddonTable.RemoveBlacklistName(index) then
-				SetBlacklistStatusMessage(string.format(L["Blacklist removed"], name))
-				RefreshBlacklistListUI()
-				if UpdateBlacklistBoxHeight then
-					UpdateBlacklistBoxHeight()
-				end
-				if UpdateOptionsScrollHeight then
-					UpdateOptionsScrollHeight()
-				end
-			end
-		end)
-
-		blacklistListRows[#blacklistListRows + 1] = row
-	end
-end
-
-local function TryAddBlacklistName()
-	if not AddonTable.AddBlacklistName then
-		return
-	end
-	local rawName = editBlacklistName:GetText() or ""
-	local ok, reason = AddonTable.AddBlacklistName(rawName)
-	if ok then
-		editBlacklistName:SetText("")
-		local names = AddonTable.GetBlacklistNames()
-		local addedName = names[#names] or rawName
-		SetBlacklistStatusMessage(string.format(L["Blacklist added"], addedName))
-		RefreshBlacklistListUI()
-	elseif reason == "duplicate" then
-		SetBlacklistStatusMessage(string.format(L["Blacklist duplicate"], rawName))
-	elseif reason == "full" then
-		SetBlacklistStatusMessage(string.format(L["Blacklist list full"], 64))
-	else
-		SetBlacklistStatusMessage("")
-	end
-	if UpdateBlacklistBoxHeight then
-		UpdateBlacklistBoxHeight()
-	end
-	if UpdateOptionsScrollHeight then
-		UpdateOptionsScrollHeight()
-	end
-end
-
-btnBlacklistAdd:SetScript("OnClick", TryAddBlacklistName)
-editBlacklistName:SetScript("OnEnterPressed", function(self)
-	TryAddBlacklistName()
-	self:ClearFocus()
-end)
 
 function AddonTable.RefreshBlacklistOptionsUI()
 	if AddonTable.EnsureMGTBlacklistConfig then
@@ -1220,9 +1046,8 @@ function AddonTable.RefreshBlacklistOptionsUI()
 		chkBlacklistEnabled:SetChecked(MGTConfig.BlacklistEnabled == "ENABLED")
 	end
 	RefreshBlacklistDetailVisibility()
-	RefreshBlacklistListUI()
-	if not MGTConfig or MGTConfig.BlacklistEnabled ~= "ENABLED" then
-		SetBlacklistStatusMessage("")
+	if AddonTable.RefreshIgnoreListSyncUI then
+		AddonTable.RefreshIgnoreListSyncUI()
 	end
 	if UpdateBlacklistBoxHeight then
 		UpdateBlacklistBoxHeight()
@@ -1232,121 +1057,70 @@ function AddonTable.RefreshBlacklistOptionsUI()
 	end
 end
 
-local function UpdateBlacklistBoxHeight()
-	local hintH = math.max(lblBlacklistHint:GetStringHeight() or 0, lblBlacklistHint:GetHeight() or 0, 14)
-	local fuzzyHintH = math.max(lblBlacklistFuzzyHint:GetStringHeight() or 0, lblBlacklistFuzzyHint:GetHeight() or 0, 14)
-	local statusH = math.max(lblBlacklistStatus:GetStringHeight() or 0, lblBlacklistStatus:GetHeight() or 0, 16)
-	local h = 8 + 16 + 4 + hintH + 8 + 22
-		+ (7 * 18) + 4 + fuzzyHintH + 10 + 14 + 4 + 22 + 4 + statusH + 6 + 124 + 16
-	blacklistBox:SetHeight(h)
-end
-
-local function UpdateTabardStalkerBoxHeight()
-	local statusH = math.max(lblTabardScanStatus:GetStringHeight() or 0, lblTabardScanStatus:GetHeight() or 28, 28)
-	local hintH = math.max(lblTabardStalkerHint:GetStringHeight() or 0, 14)
-	tabardStalkerBox:SetHeight(8 + 16 + 4 + hintH + 8 + 22 + 8 + 22 + 8 + 22 + 8 + 22 + 4 + 22 + 4 + statusH + 14)
-end
-
-local function UpdateOptionsScrollHeight()
-	UpdateTabardStalkerBoxHeight()
-	UpdateBlacklistBoxHeight()
-	local height = tooltipBox:GetHeight() + invitationsBox:GetHeight() + honorGuildDeathBox:GetHeight() + tabardStalkerBox:GetHeight() + blacklistBox:GetHeight() + 64
-	optionsScrollChild:SetHeight(height)
-end
-
-local function RefreshTabardScanUI()
-	local inGroup = AddonTable.IsInGroupOrRaid and AddonTable.IsInGroupOrRaid()
-	local running = AddonTable.IsTabardScanRunning and AddonTable.IsTabardScanRunning()
-
-	if running then
-		btnScanTabards:Disable()
-		btnResetTabardCache:Disable()
-		btnAnnounceTabards:Disable()
-		tabardScanSpinner:Show()
-		tabardSpinnerAnim:Play()
-	else
-		tabardScanSpinner:Hide()
-		tabardSpinnerAnim:Stop()
-		btnResetTabardCache:Enable()
-		if AddonTable.HasPendingTabardAnnounce and AddonTable.HasPendingTabardAnnounce() then
-			btnAnnounceTabards:Enable()
-		else
-			btnAnnounceTabards:Disable()
+UpdateBlacklistBoxHeight = function()
+	local function ApplyHeight()
+		if not blacklistBox or not btnBlacklistOpenIgnore then
+			return
 		end
-		if inGroup then
-			btnScanTabards:Enable()
-		else
-			btnScanTabards:Disable()
+		local hintH = math.max(lblBlacklistHint:GetStringHeight() or 0, lblBlacklistHint:GetHeight() or 14, 14)
+		local nameplateHintH = math.max(lblBlacklistNameplateHint:GetStringHeight() or 0, lblBlacklistNameplateHint:GetHeight() or 14, 14)
+		local fuzzyHintH = math.max(lblBlacklistFuzzyHint:GetStringHeight() or 0, lblBlacklistFuzzyHint:GetHeight() or 14, 14)
+		local syncStatusH = 0
+		if lblIgnoreListSyncStatus and lblIgnoreListSyncStatus:IsShown() then
+			syncStatusH = math.max(lblIgnoreListSyncStatus:GetStringHeight() or 0, lblIgnoreListSyncStatus:GetHeight() or 14, 14)
 		end
-		if lblTabardScanStatus:GetText() == "" then
-			if inGroup then
-				lblTabardScanStatus:SetText(L["Ready to scan your party or raid."])
-			else
-				lblTabardScanStatus:SetText(L["Join a party or raid to scan tabards."])
+		local syncAltHintH = 0
+		if lblIgnoreListSyncAltHint and lblIgnoreListSyncAltHint:IsShown() then
+			syncAltHintH = math.max(lblIgnoreListSyncAltHint:GetStringHeight() or 0, lblIgnoreListSyncAltHint:GetHeight() or 14, 14) + 4
+		end
+		local syncBlockH = BLACKLIST_SYNC_TOP_GAP
+			+ (BLACKLIST_SYNC_EXTRA_ROWS * BLACKLIST_CHECKBOX_ROW)
+			+ 4 + syncStatusH + syncAltHintH
+
+		local computed = 8 + 16 + 4 + hintH + 8 + BLACKLIST_CHECKBOX_ROW
+			+ (BLACKLIST_DETAIL_CHECKBOX_COUNT * BLACKLIST_CHECKBOX_ROW)
+			+ 4 + nameplateHintH + 10 + fuzzyHintH + BLACKLIST_BTN_TOP_GAP + BLACKLIST_BTN_HEIGHT
+			+ syncBlockH + BLACKLIST_BOX_BOTTOM_PAD
+
+		local measured = 0
+		if blacklistBox:IsVisible() then
+			local boxTop = blacklistBox:GetTop()
+			local bottomRef = lblIgnoreListSyncAltHint
+			if not bottomRef:IsShown() then
+				bottomRef = lblIgnoreListSyncStatus
+			end
+			if not bottomRef:IsShown() then
+				bottomRef = lblIgnoreListSyncAlt:IsShown() and lblIgnoreListSyncAlt or btnBlacklistOpenIgnore
+			end
+			local refBottom = bottomRef:GetBottom()
+			if boxTop and refBottom then
+				local scale = blacklistBox:GetEffectiveScale() or 1
+				measured = (boxTop - refBottom) / scale + BLACKLIST_BOX_BOTTOM_PAD
 			end
 		end
-	end
-	UpdateOptionsScrollHeight()
-end
 
-AddonTable.OnTabardScanStatus = function(text)
-	if text and text ~= "" then
-		lblTabardScanStatus:SetText(text)
+		blacklistBox:SetHeight(math.max(computed, measured, BLACKLIST_MIN_BOX_HEIGHT))
+		if UpdateOptionsScrollHeight then
+			UpdateOptionsScrollHeight()
+		end
+	end
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0, ApplyHeight)
+		C_Timer.After(0.05, ApplyHeight)
 	else
-		lblTabardScanStatus:SetText("")
+		ApplyHeight()
 	end
-	RefreshTabardScanUI()
 end
 
-AddonTable.OnTabardScanStarted = function()
-	RefreshTabardScanUI()
+blacklistBox:SetScript("OnShow", function()
+	UpdateBlacklistBoxHeight()
+end)
+
+local function UpdateOptionsScrollHeight()
+	local height = tooltipBox:GetHeight() + invitationsBox:GetHeight() + honorGuildDeathBox:GetHeight() + blacklistBox:GetHeight() + 64
+	optionsScrollChild:SetHeight(height)
 end
-
-AddonTable.OnTabardScanFinished = function(missingCount, cannotInspectCount)
-	missingCount = missingCount or 0
-	cannotInspectCount = cannotInspectCount or 0
-	if missingCount > 0 and cannotInspectCount > 0 then
-		lblTabardScanStatus:SetText(string.format(
-			L["Scan finished. %d without tabard, %d not inspectable."],
-			missingCount,
-			cannotInspectCount
-		))
-	elseif missingCount > 0 then
-		lblTabardScanStatus:SetText(string.format(L["Scan finished. %d without tabard."], missingCount))
-	elseif cannotInspectCount > 0 then
-		lblTabardScanStatus:SetText(string.format(L["Scan finished. %d not inspectable."], cannotInspectCount))
-	else
-		lblTabardScanStatus:SetText(L["Scan finished."])
-	end
-	RefreshTabardScanUI()
-end
-
-btnAnnounceTabards:SetScript("OnClick", function()
-	if AddonTable.AnnounceMissingTabards then
-		AddonTable.AnnounceMissingTabards()
-	end
-end)
-
-btnScanTabards:SetScript("OnClick", function()
-	if AddonTable.StartTabardScan then
-		AddonTable.StartTabardScan()
-	end
-end)
-
-btnResetTabardCache:SetScript("OnClick", function()
-	if AddonTable.ResetTabardCache then
-		AddonTable.ResetTabardCache()
-	end
-	lblTabardScanStatus:SetText(L["Tabard cache cleared."])
-	RefreshTabardScanUI()
-end)
-
-local tabardScanWatcher = CreateFrame("Frame")
-tabardScanWatcher:RegisterEvent("GROUP_ROSTER_UPDATE")
-tabardScanWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-tabardScanWatcher:RegisterEvent("RAID_ROSTER_UPDATE")
-tabardScanWatcher:SetScript("OnEvent", RefreshTabardScanUI)
-RefreshTabardScanUI()
 
 optionsScrollChild:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
@@ -1413,6 +1187,10 @@ elseif msg == "gnotes" or msg == "guildnotes" then
 		MGTConfig.GuildNotes = "DISABLED"
 	elseif MGTConfig.GuildNotes == "DISABLED" then
 		MGTConfig.GuildNotes = "ENABLED"
+	end
+elseif msg:lower() == "blacklist reset" then
+	if AddonTable.ResetIgnoreListSync then
+		AddonTable.ResetIgnoreListSync()
 	end
 elseif msg:match("^test ") then
 	local testMsg = msg:match('^test "(.*)"$') or msg:match("^test (.+)$")

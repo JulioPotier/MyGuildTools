@@ -20,9 +20,7 @@ local pendingGuildHonorOutput = {}
 
 local pendingWhoQueries = {}
 local pendingWhoAfterCombat = false
-local whoDispatchFrame = CreateFrame("Frame")
-whoDispatchFrame:Hide()
-local whoDispatchWait = 0
+local whoDispatchScheduled = false
 
 local MGT_ALLIANCE_RACES = {
 	["human"] = true,
@@ -234,57 +232,83 @@ local function MGTStoreMemberDetails(name, class, race, sex)
 	end
 end
 
-local function MGTExecuteSendWho(query)
-	if not query or query == "" then
+local function MGTCanSendWhoNow()
+	if InCombatLockdown and InCombatLockdown() then
 		return false
 	end
-	local ok = pcall(function()
-		if C_FriendList and C_FriendList.SendWho then
-			C_FriendList.SendWho(query)
-		elseif SendWho then
-			SendWho(query)
+	if issecure and not issecure() then
+		return false
+	end
+	return true
+end
+
+local function MGTExecuteSendWho(query)
+	if not query or query == "" or not MGTCanSendWhoNow() then
+		return false
+	end
+	if C_FriendList and C_FriendList.SendWho then
+		return pcall(C_FriendList.SendWho, query)
+	end
+	if SendWho then
+		return pcall(SendWho, query)
+	end
+	return false
+end
+
+local function MGTDispatchNextWho()
+	whoDispatchScheduled = false
+	if #pendingWhoQueries == 0 then
+		pendingWhoAfterCombat = false
+		return
+	end
+
+	if not MGTCanSendWhoNow() then
+		pendingWhoAfterCombat = true
+		if not whoDispatchScheduled and C_Timer and C_Timer.After then
+			whoDispatchScheduled = true
+			C_Timer.After(0.5, MGTDispatchNextWho)
 		end
-	end)
-	return ok
+		return
+	end
+
+	local query = table.remove(pendingWhoQueries, 1)
+	local ok = MGTExecuteSendWho(query)
+	if not ok then
+		table.insert(pendingWhoQueries, 1, query)
+		if MGTIsHonorDebugEnabled() then
+			MGTDebugLog("SendWho blocked or failed for:", query)
+		end
+		if C_Timer and C_Timer.After then
+			whoDispatchScheduled = true
+			C_Timer.After(1, MGTDispatchNextWho)
+		end
+		return
+	end
+
+	if #pendingWhoQueries > 0 then
+		if C_Timer and C_Timer.After then
+			whoDispatchScheduled = true
+			C_Timer.After(0.6, MGTDispatchNextWho)
+		end
+	else
+		pendingWhoAfterCombat = false
+	end
 end
 
 local function MGTStartWhoDispatch()
 	if #pendingWhoQueries == 0 then
-		whoDispatchFrame:Hide()
-		whoDispatchWait = 0
 		return
 	end
-	if not whoDispatchFrame:IsShown() then
-		whoDispatchWait = 0.05
-		whoDispatchFrame:Show()
+	if whoDispatchScheduled then
+		return
+	end
+	whoDispatchScheduled = true
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0.05, MGTDispatchNextWho)
+	else
+		MGTDispatchNextWho()
 	end
 end
-
-whoDispatchFrame:SetScript("OnUpdate", function(_, elapsed)
-	if #pendingWhoQueries == 0 then
-		whoDispatchFrame:Hide()
-		whoDispatchWait = 0
-		return
-	end
-	if InCombatLockdown and InCombatLockdown() then
-		pendingWhoAfterCombat = true
-		return
-	end
-	whoDispatchWait = whoDispatchWait - elapsed
-	if whoDispatchWait > 0 then
-		return
-	end
-	local query = table.remove(pendingWhoQueries, 1)
-	if not MGTExecuteSendWho(query) and MGTIsHonorDebugEnabled() then
-		MGTDebugLog("SendWho blocked or failed for:", query)
-	end
-	if #pendingWhoQueries > 0 then
-		whoDispatchWait = 0.6
-	else
-		pendingWhoAfterCombat = false
-		whoDispatchFrame:Hide()
-	end
-end)
 
 local function MGTSafeSendWho(query)
 	if not query or query == "" then

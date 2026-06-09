@@ -51,9 +51,6 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["FontSize"] = "14",
 			["GuildInviteMenu"] = "DISABLED",
 			["GuildNotes"] = "DISABLED",
-			["TabardStalkerGuildOnly"] = "ENABLED",
-			["TabardStalkerMinLevel"] = "40",
-			["TabardStalkerAutoScan"] = "DISABLED",
 			["HonorGuildDeathAuto"] = "DISABLED",
 			["HonorGuildDeathDebug"] = "DISABLED",
 			["HonorGuildDeathFormat"] = "F %NAME% (lvl %LEVEL%) :'(",
@@ -69,10 +66,19 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["BlacklistAlertGroup"] = "ENABLED",
 			["BlacklistAlertTrade"] = "ENABLED",
 			["BlacklistAlertProximity"] = "ENABLED",
+			["BlacklistAlertNameplate"] = "ENABLED",
+			["BlacklistNameplateApplyCVars"] = "ENABLED",
 			["BlacklistPlaySound"] = "ENABLED",
+			["BlacklistChatAlert"] = "ENABLED",
+			["BlacklistRaidScreenAlert"] = "DISABLED",
 			["BlacklistAutoBlock"] = "DISABLED",
 			["BlacklistFuzzyMatch"] = "ENABLED",
 			["BlacklistFuzzyMaxDistance"] = 1,
+			["IgnoreListSyncEnabled"] = "DISABLED",
+			["IgnoreListSyncMain"] = nil,
+			["IgnoreListSyncLoginApply"] = "ENABLED",
+			["AccountIgnoreNames"] = {},
+			["AccountIgnoreNamesRevision"] = 0,
 		}
 	end
 	
@@ -106,9 +112,6 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 		AddonTable.RefreshBlacklistWatcher()
 	end
 	if MGTConfig.GuildNotes == nil then MGTConfig.GuildNotes = 'DISABLED' end
-	if MGTConfig.TabardStalkerGuildOnly == nil then MGTConfig.TabardStalkerGuildOnly = 'ENABLED' end
-	if MGTConfig.TabardStalkerMinLevel == nil then MGTConfig.TabardStalkerMinLevel = '40' end
-	if MGTConfig.TabardStalkerAutoScan == nil then MGTConfig.TabardStalkerAutoScan = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathAuto == nil then MGTConfig.HonorGuildDeathAuto = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathDebug == nil then MGTConfig.HonorGuildDeathDebug = 'DISABLED' end
 	if MGTConfig.HonorGuildDeathFormat == nil or MGTConfig.HonorGuildDeathFormat == "" then
