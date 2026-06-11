@@ -1169,25 +1169,7 @@ if msg == "" or msg == nil then
 		print("Category not found")
 	end
 elseif msg == "help" then
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r The following arguments are valid:\ncolour/color - Toggle colouring of player name and class\nhp/health/bar - Toggle the HP bar under the tooltip\ngnotes/guildnotes - Toggle guild notes on tooltips\ntest \"...\" - Test Honor Guild Death parsing\n\nFormats are configured in the addon options (Settings).")
-elseif msg == "colour" or msg == "color" then
-	if MGTConfig.Colour == "ENABLED" then
-		MGTConfig.Colour = 'DISABLED'
-	elseif MGTConfig.Colour == "DISABLED" then
-		MGTConfig.Colour = 'ENABLED'
-	end
-elseif msg == "hp" or msg == "health" or msg == "bar" then
-	if MGTConfig.HealthBar == "ENABLED" then
-		MGTConfig.HealthBar = 'DISABLED'
-	elseif MGTConfig.HealthBar == "DISABLED" then
-		MGTConfig.HealthBar = 'ENABLED'
-	end
-elseif msg == "gnotes" or msg == "guildnotes" then
-	if MGTConfig.GuildNotes == "ENABLED" then
-		MGTConfig.GuildNotes = "DISABLED"
-	elseif MGTConfig.GuildNotes == "DISABLED" then
-		MGTConfig.GuildNotes = "ENABLED"
-	end
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r Opens the options panel.\nblacklist reset - Reset synced ignore list\n\nConfigure the addon in Settings (Esc → Interface → AddOns).")
 elseif msg:lower() == "blacklist reset" then
 	if AddonTable.ResetIgnoreListSync then
 		AddonTable.ResetIgnoreListSync()
@@ -1200,6 +1182,18 @@ elseif msg:match("^test ") then
 		if AddonTable.TestHonorDeathMessage then
 			AddonTable.TestHonorDeathMessage(testMsg)
 		end
+	end
+elseif msg:match("^big ") then
+	local channelKey, bigMsg = msg:match('^big ([pgso]) "(.*)"$')
+	if not channelKey then
+		channelKey, bigMsg = msg:match("^big ([pgso]) '(.+)'$")
+	end
+	if not channelKey then
+		channelKey, bigMsg = msg:match("^big ([pgso]) (.+)$")
+	end
+	local chatType = ({ p = "PARTY", g = "GUILD", s = "SAY", o = "OFFICER" })[channelKey]
+	if chatType and bigMsg and bigMsg ~= "" and SendChatMessage then
+		pcall(SendChatMessage, "一> " .. bigMsg .. " <一", chatType)
 	end
 end
 

@@ -114,9 +114,6 @@ end
 function AddonTable.SetGroupInviteBlockActive(enabled)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	MGTConfig.BlockGroupInvites = enabled and "ENABLED" or "DISABLED"
-	if enabled and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
-	end
 	AddonTable.RefreshGroupInviteBlocker()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	if AddonTable.RefreshInvitationsOptionsUI then
@@ -136,9 +133,8 @@ function AddonTable.SetGroupInviteBlockMode(mode)
 	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
 		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
 		MGTConfig.BlockGroupInvites = "ENABLED"
-	elseif mode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-		MGTConfig.BlockGroupInvites = "DISABLED"
 	end
+	-- NONE: keep module enabled so the minimap icon and mode picker stay available.
 	AddonTable.UpdateGroupInviteMinimapIcon()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	AddonTable.RefreshGroupInviteBlocker()
