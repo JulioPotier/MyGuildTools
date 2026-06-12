@@ -5,7 +5,6 @@ AddonTable.GROUP_INVITE_BLOCK_NONE = "NONE"
 AddonTable.GROUP_INVITE_BLOCK_COMBAT = "COMBAT"
 AddonTable.GROUP_INVITE_BLOCK_ALWAYS = "ALWAYS"
 
-local BLOCK_ICON = "Interface\\Icons\\INV_Misc_Banner_01"
 local MINIMAP_ANGLE = 225
 local MINIMAP_RADIUS = 80
 local MINIMAP_DRAG_THRESHOLD = 4
@@ -16,9 +15,8 @@ local blockFrame
 local pendingInvite
 local pendingInviteGeneration = 0
 local minimapButton
-local minimapIcon
-local minimapLetterBgOuter
-local minimapLetterBgInner
+local minimapBg
+local minimapBorder
 local minimapLetter
 local minimapDragActive = false
 local minimapDragMoved = false
@@ -58,7 +56,7 @@ end
 function AddonTable.EnsureMGTGroupInviteConfig()
 	MGTConfig = MGTConfig or {}
 	if MGTConfig.BlockGroupInvites == nil then
-		MGTConfig.BlockGroupInvites = "DISABLED"
+		MGTConfig.BlockGroupInvites = "ENABLED"
 	end
 	if MGTConfig.GroupInviteBlockMode == nil then
 		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_NONE
@@ -70,12 +68,9 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
-	if not MGTConfig.GroupInviteLegacyModeMigrated then
-		if MGTConfig.BlockGroupInvites == "ENABLED"
-			and MGTConfig.GroupInviteBlockMode == AddonTable.GROUP_INVITE_BLOCK_NONE then
-			MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_ALWAYS
-		end
-		MGTConfig.GroupInviteLegacyModeMigrated = true
+	if not MGTConfig.GroupInviteAlwaysOnMigrated then
+		MGTConfig.BlockGroupInvites = "ENABLED"
+		MGTConfig.GroupInviteAlwaysOnMigrated = true
 	end
 end
 
@@ -113,7 +108,10 @@ end
 
 function AddonTable.SetGroupInviteBlockActive(enabled)
 	AddonTable.EnsureMGTGroupInviteConfig()
-	MGTConfig.BlockGroupInvites = enabled and "ENABLED" or "DISABLED"
+	MGTConfig.BlockGroupInvites = "ENABLED"
+	if not enabled then
+		MGTConfig.GroupInviteBlockMode = AddonTable.GROUP_INVITE_BLOCK_NONE
+	end
 	AddonTable.RefreshGroupInviteBlocker()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	if AddonTable.RefreshInvitationsOptionsUI then
@@ -130,11 +128,7 @@ function AddonTable.SetGroupInviteBlockMode(mode)
 	AddonTable.EnsureMGTGroupInviteConfig()
 	mode = NormalizeBlockMode(mode)
 	MGTConfig.GroupInviteBlockMode = mode
-	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
-		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
-		MGTConfig.BlockGroupInvites = "ENABLED"
-	end
-	-- NONE: keep module enabled so the minimap icon and mode picker stay available.
+	MGTConfig.BlockGroupInvites = "ENABLED"
 	AddonTable.UpdateGroupInviteMinimapIcon()
 	AddonTable.RefreshGroupInviteMinimapButton()
 	AddonTable.RefreshGroupInviteBlocker()
@@ -332,7 +326,7 @@ local function UpdateMinimapPositionFromCursor()
 end
 
 function AddonTable.UpdateGroupInviteMinimapIcon()
-	if not minimapIcon or not minimapLetter then
+	if not minimapBg or not minimapLetter then
 		return
 	end
 	local mode = AddonTable.GetGroupInviteBlockMode()
@@ -345,7 +339,7 @@ function AddonTable.UpdateGroupInviteMinimapIcon()
 		r, g, b = 1, 0.2, 0.2
 		letter = "B"
 	end
-	minimapIcon:SetVertexColor(r, g, b)
+	minimapBg:SetVertexColor(r, g, b)
 	minimapLetter:SetText(letter)
 	minimapLetter:SetTextColor(r, g, b)
 end
@@ -417,32 +411,25 @@ local function CreateMinimapButton()
 	end
 
 	minimapButton = CreateFrame("Button", "MGTGroupBlockMinimapButton", Minimap)
-	minimapButton:SetSize(32, 32)
+	minimapButton:SetSize(31, 31)
 	minimapButton:SetFrameStrata("MEDIUM")
 	minimapButton:SetFrameLevel(8)
 	minimapButton:RegisterForClicks("LeftButtonUp")
+	minimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
-	minimapIcon = minimapButton:CreateTexture(nil, "BACKGROUND")
-	minimapIcon:SetSize(24, 24)
-	minimapIcon:SetPoint("CENTER")
-	minimapIcon:SetTexture(BLOCK_ICON)
-	minimapIcon:SetAlpha(0.35)
+	minimapBg = minimapButton:CreateTexture(nil, "BACKGROUND")
+	minimapBg:SetSize(20, 20)
+	minimapBg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+	minimapBg:SetPoint("TOPLEFT", 7, -5)
 
-	minimapLetterBgOuter = minimapButton:CreateTexture(nil, "BORDER")
-	minimapLetterBgOuter:SetSize(26, 26)
-	minimapLetterBgOuter:SetPoint("CENTER")
-	minimapLetterBgOuter:SetTexture("Interface\\Minimap\\Ping\\ping5")
-	minimapLetterBgOuter:SetVertexColor(0.55, 0.55, 0.55, 1)
-
-	minimapLetterBgInner = minimapButton:CreateTexture(nil, "ARTWORK")
-	minimapLetterBgInner:SetSize(20, 20)
-	minimapLetterBgInner:SetPoint("CENTER")
-	minimapLetterBgInner:SetTexture("Interface\\Minimap\\Ping\\ping5")
-	minimapLetterBgInner:SetVertexColor(0.98, 0.98, 0.98, 0.96)
-
-	minimapLetter = minimapButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	minimapLetter = minimapButton:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
 	minimapLetter:SetPoint("CENTER", 0, 0)
-	minimapLetter:SetFont("Fonts\\FRIZQT__.TTF", 14, "OUTLINE")
+	minimapLetter:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+
+	minimapBorder = minimapButton:CreateTexture(nil, "OVERLAY")
+	minimapBorder:SetSize(53, 53)
+	minimapBorder:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+	minimapBorder:SetPoint("TOPLEFT")
 
 	minimapButton:SetScript("OnMouseDown", function(self, button)
 		if button ~= "LeftButton" then

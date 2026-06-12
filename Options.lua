@@ -354,15 +354,8 @@ guildInviteOpts.hint:SetJustifyV("TOP")
 guildInviteOpts.hint:SetSpacing(4)
 guildInviteOpts.hint:SetText(L["Guild invite key hint"])
 
-local chkBlockGroupInvites = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
-chkBlockGroupInvites:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", -16, -8)
-
-local lblBlockGroupInvites = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
-lblBlockGroupInvites:SetPoint("LEFT", chkBlockGroupInvites, "RIGHT", 0, 1)
-lblBlockGroupInvites:SetText(L["Block Group Invitations"])
-
 local chkMinimapBlockButton = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
-chkMinimapBlockButton:SetPoint("TOPLEFT", chkBlockGroupInvites, "BOTTOMLEFT", 0, -4)
+chkMinimapBlockButton:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", -16, -8)
 
 local lblMinimapBlockButton = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
 lblMinimapBlockButton:SetPoint("LEFT", chkMinimapBlockButton, "RIGHT", 0, 1)
@@ -435,27 +428,9 @@ end)
 
 local function UpdateInvitationsBoxHeight()
 	local hintH = math.max(guildInviteOpts.hint:GetStringHeight() or 0, 14)
-	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8 + 22 + 14
-	if AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive() then
-		h = h + 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
-	end
+	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8
+		+ 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
 	invitationsBox:SetHeight(h)
-end
-
-local function RefreshInvitationsBlockControls()
-	local blockActive = AddonTable.IsGroupInviteBlockActive and AddonTable.IsGroupInviteBlockActive()
-	if blockActive then
-		chkMinimapBlockButton:Show()
-		lblMinimapBlockButton:Show()
-		lblGroupBlockMode:Show()
-		ddGroupBlockMode:Show()
-	else
-		chkMinimapBlockButton:Hide()
-		lblMinimapBlockButton:Hide()
-		lblGroupBlockMode:Hide()
-		ddGroupBlockMode:Hide()
-	end
-	UpdateInvitationsBoxHeight()
 end
 
 function ddGroupBlockMode:SetValue(newMode)
@@ -463,31 +438,23 @@ function ddGroupBlockMode:SetValue(newMode)
 		AddonTable.SetGroupInviteBlockMode(newMode)
 	end
 	RefreshGroupBlockModeDropdown()
-	RefreshInvitationsBlockControls()
+	UpdateInvitationsBoxHeight()
 	CloseDropDownMenus()
 end
 
 function AddonTable.RefreshInvitationsOptionsUI()
-	if AddonTable.IsGroupInviteBlockActive then
-		chkBlockGroupInvites:SetChecked(AddonTable.IsGroupInviteBlockActive())
+	if AddonTable.EnsureMGTGroupInviteConfig then
+		AddonTable.EnsureMGTGroupInviteConfig()
 	end
 	if AddonTable.IsMinimapBlockButtonEnabled then
 		chkMinimapBlockButton:SetChecked(AddonTable.IsMinimapBlockButtonEnabled())
 	end
 	RefreshGroupBlockModeDropdown()
-	RefreshInvitationsBlockControls()
+	UpdateInvitationsBoxHeight()
 	if UpdateOptionsScrollHeight then
 		UpdateOptionsScrollHeight()
 	end
 end
-
-chkBlockGroupInvites:SetScript("OnClick", function(frame)
-	if not AddonTable.SetGroupInviteBlockActive then
-		return
-	end
-	AddonTable.SetGroupInviteBlockActive(frame:GetChecked() == true)
-	RefreshInvitationsBlockControls()
-end)
 
 chkMinimapBlockButton:SetScript("OnClick", function(frame)
 	if not AddonTable.SetMinimapBlockButtonEnabled then
@@ -1184,14 +1151,14 @@ elseif msg:match("^test ") then
 		end
 	end
 elseif msg:match("^big ") then
-	local channelKey, bigMsg = msg:match('^big ([pgso]) "(.*)"$')
+	local channelKey, bigMsg = msg:match('^big ([pgsor]) "(.*)"$')
 	if not channelKey then
-		channelKey, bigMsg = msg:match("^big ([pgso]) '(.+)'$")
+		channelKey, bigMsg = msg:match("^big ([pgsor]) '(.+)'$")
 	end
 	if not channelKey then
-		channelKey, bigMsg = msg:match("^big ([pgso]) (.+)$")
+		channelKey, bigMsg = msg:match("^big ([pgsor]) (.+)$")
 	end
-	local chatType = ({ p = "PARTY", g = "GUILD", s = "SAY", o = "OFFICER" })[channelKey]
+	local chatType = ({ p = "PARTY", g = "GUILD", s = "SAY", o = "OFFICER", r = "RAID" })[channelKey]
 	if chatType and bigMsg and bigMsg ~= "" and SendChatMessage then
 		pcall(SendChatMessage, "一> " .. bigMsg .. " <一", chatType)
 	end

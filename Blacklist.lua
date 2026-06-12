@@ -387,6 +387,71 @@ local function FinishIgnoreListSyncApply()
 	end
 end
 
+local function AppendToAccountIgnoreList(name)
+	AddonTable.EnsureMGTBlacklistConfig()
+	if type(name) ~= "string" or name == "" then
+		return false
+	end
+	local accountNames = MGTConfig.AccountIgnoreNames or {}
+	if IsNameInIgnoreNameList(name, accountNames) then
+		return false
+	end
+	accountNames[#accountNames + 1] = name
+	MGTConfig.AccountIgnoreNames = accountNames
+	MGTConfig.AccountIgnoreNamesRevision = (tonumber(MGTConfig.AccountIgnoreNamesRevision) or 0) + 1
+	return true
+end
+
+local function HandleAltIgnoreListUpdate()
+	local localNames = ReadLocalIgnoreList()
+	local accountNames = MGTConfig.AccountIgnoreNames or {}
+
+	local addedNames = {}
+	for _, localName in ipairs(localNames) do
+		if not IsNameInIgnoreNameList(localName, accountNames) then
+			if AppendToAccountIgnoreList(localName) then
+				addedNames[#addedNames + 1] = NormalizePlayerName(localName)
+				accountNames = MGTConfig.AccountIgnoreNames or {}
+			end
+		end
+	end
+
+	local removedFromLocal = {}
+	for _, accountName in ipairs(accountNames) do
+		if not IsNameInIgnoreNameList(accountName, localNames) then
+			removedFromLocal[#removedFromLocal + 1] = accountName
+		end
+	end
+
+	if #removedFromLocal > 0 then
+		ignoreListSyncApplying = true
+		ignoreListSyncSuppressUserAlerts = true
+		for _, accountName in ipairs(removedFromLocal) do
+			if GetNumIgnores() < IGNORE_LIST_MAX
+				and not IsNameInIgnoreNameList(accountName, ReadLocalIgnoreList()) then
+				AddIgnoreName(accountName)
+			end
+		end
+		FinishIgnoreListSyncApply()
+		local mainName = AddonTable.GetIgnoreListSyncMainDisplayName()
+		print("|cFFFF8800[MyGuildTools]|r " .. string.format(L["Ignore list sync alt remove blocked"], mainName))
+	end
+
+	for _, displayName in ipairs(addedNames) do
+		print("|cFF0088FF[MyGuildTools]|r " .. string.format(L["Ignore list sync alt added"], displayName))
+	end
+
+	if #addedNames > 0 or #removedFromLocal > 0 then
+		ignoreListAltWasSynced = true
+		if AddonTable.RefreshIgnoreListSyncUI then
+			AddonTable.RefreshIgnoreListSyncUI()
+		end
+		return true
+	end
+
+	return false
+end
+
 local function ApplyAccountIgnoreListToLocal()
 	if ignoreListSyncApplying then
 		return false
@@ -488,6 +553,9 @@ local function OnIgnoreListUpdate()
 		end
 		if not ignoreListAltWasSynced or pendingLoginIgnoreSync then
 			ApplyAccountIgnoreListToLocal()
+			return
+		end
+		if HandleAltIgnoreListUpdate() then
 			return
 		end
 		local mainName = AddonTable.GetIgnoreListSyncMainDisplayName()

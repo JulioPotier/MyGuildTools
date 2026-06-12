@@ -56,7 +56,7 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["HonorGuildDeathFormat"] = "F %NAME% (lvl %LEVEL%) :'(",
 			["HonorDeathRosterCache"] = {},
 			["HonorDeathPlayerCache"] = {},
-			["BlockGroupInvites"] = "DISABLED",
+			["BlockGroupInvites"] = "ENABLED",
 			["GroupInviteBlockMode"] = "NONE",
 			["MinimapBlockButton"] = "DISABLED",
 			["MinimapBlockAngle"] = 225,
