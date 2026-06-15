@@ -412,3 +412,16 @@ GameTooltipHeaderText:SetFont("Fonts\\FRIZQT__.ttf", tonumber(MGTConfig.FontSize
 
 	MGTAppendGuildNotes(person)
 end
+
+function AddonTable.PlayerIsGuildOfficerOrLeader()
+	if not IsInGuild or not IsInGuild() then
+		return false
+	end
+	if IsGuildLeader and IsGuildLeader() then
+		return true
+	end
+	if C_GuildInfo and C_GuildInfo.IsGuildOfficer then
+		return C_GuildInfo.IsGuildOfficer()
+	end
+	return false
+end

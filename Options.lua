@@ -43,6 +43,48 @@ lblTip:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -12, 12)
 lblTip:SetJustifyH("CENTER")
 lblTip:SetText(L["Tip line"])
 
+local lblBigCommandHint = GTIOFrame:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblBigCommandHint:SetPoint("BOTTOMLEFT", lblTip, "TOPLEFT", 0, 6)
+lblBigCommandHint:SetPoint("BOTTOMRIGHT", lblTip, "TOPRIGHT", 0, 6)
+lblBigCommandHint:SetJustifyH("CENTER")
+lblBigCommandHint:SetSpacing(3)
+lblBigCommandHint:SetWordWrap(true)
+lblBigCommandHint:Hide()
+
+local OPTIONS_SCROLL_BOTTOM_DEFAULT = 36
+
+local function GetMGTSlashCommand()
+	if SLASH_MGTCONFIG1 then
+		if type(SLASH_MGTCONFIG1) == "table" then
+			return SLASH_MGTCONFIG1[1] or "/mgt"
+		end
+		return SLASH_MGTCONFIG1
+	end
+	return "/mgt"
+end
+
+local function RefreshBigCommandHint()
+	if not lblBigCommandHint or not optionsScroll then
+		return
+	end
+	local show = AddonTable.PlayerIsGuildOfficerOrLeader and AddonTable.PlayerIsGuildOfficerOrLeader()
+	lblBigCommandHint:SetShown(show)
+	local scrollBottom = OPTIONS_SCROLL_BOTTOM_DEFAULT
+	if show then
+		lblBigCommandHint:SetText(string.format(L["Big command hint"], GetMGTSlashCommand()))
+		local hintH = lblBigCommandHint:GetStringHeight() or 14
+		scrollBottom = OPTIONS_SCROLL_BOTTOM_DEFAULT + hintH + 6
+	end
+	optionsScroll:ClearAllPoints()
+	optionsScroll:SetPoint("TOPLEFT", lblTitle, "BOTTOMLEFT", -4, -12)
+	optionsScroll:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -28, scrollBottom)
+end
+
+local bigCommandHintWatcher = CreateFrame("Frame")
+bigCommandHintWatcher:RegisterEvent("PLAYER_GUILD_UPDATE")
+bigCommandHintWatcher:RegisterEvent("GUILD_ROSTER_UPDATE")
+bigCommandHintWatcher:SetScript("OnEvent", RefreshBigCommandHint)
+
 local optionsScroll = CreateFrame("ScrollFrame", "MGTOptionsScroll", GTIOFrame, "UIPanelScrollFrameTemplate")
 optionsScroll:SetPoint("TOPLEFT", lblTitle, "BOTTOMLEFT", -4, -12)
 optionsScroll:SetPoint("BOTTOMRIGHT", GTIOFrame, "BOTTOMRIGHT", -28, 36)
@@ -1100,6 +1142,7 @@ optionsScrollChild:SetScript("OnShow", function()
 	if AddonTable.RefreshBlacklistOptionsUI then
 		AddonTable.RefreshBlacklistOptionsUI()
 	end
+	RefreshBigCommandHint()
 end)
 GTIOFrame:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
@@ -1112,6 +1155,7 @@ GTIOFrame:SetScript("OnShow", function()
 	if AddonTable.RefreshBlacklistOptionsUI then
 		AddonTable.RefreshBlacklistOptionsUI()
 	end
+	RefreshBigCommandHint()
 end)
 UpdateOptionsScrollHeight()
 RefreshHonorGuildDeathUI()
@@ -1119,6 +1163,7 @@ RefreshGuildInviteOptionsUI()
 if AddonTable.RefreshBlacklistOptionsUI then
 	AddonTable.RefreshBlacklistOptionsUI()
 end
+RefreshBigCommandHint()
 
 local category, layout = Settings.RegisterCanvasLayoutCategory(GTIOFrame, "MyGuildTools")
 Settings.RegisterAddOnCategory(category)
