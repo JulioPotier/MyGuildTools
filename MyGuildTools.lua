@@ -49,7 +49,6 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["HealthBar"] = "ENABLED",
 			["TooltipFormat"] = "%GUILD% %RANK%",
 			["FontSize"] = "14",
-			["GuildInviteMenu"] = "DISABLED",
 			["GuildNotes"] = "DISABLED",
 			["HonorGuildDeathAuto"] = "DISABLED",
 			["HonorGuildDeathDebug"] = "DISABLED",
@@ -58,6 +57,7 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			["HonorDeathPlayerCache"] = {},
 			["BlockGroupInvites"] = "ENABLED",
 			["GroupInviteBlockMode"] = "NONE",
+			["GroupInviteAllowGuildies"] = "ENABLED",
 			["MinimapBlockButton"] = "DISABLED",
 			["MinimapBlockAngle"] = 225,
 			["BlacklistEnabled"] = "DISABLED",
@@ -95,7 +95,6 @@ if event == "ADDON_LOADED" and arg1 == AddonName then
 			MGTConfig.TooltipFormat = "%GUILDNAME%"
 		end
 	end
-	if MGTConfig.GuildInviteMenu == nil then MGTConfig.GuildInviteMenu = 'DISABLED' end
 	if AddonTable.EnsureMGTGroupInviteConfig then
 		AddonTable.EnsureMGTGroupInviteConfig()
 	end
@@ -422,6 +421,29 @@ function AddonTable.PlayerIsGuildOfficerOrLeader()
 	end
 	if C_GuildInfo and C_GuildInfo.IsGuildOfficer then
 		return C_GuildInfo.IsGuildOfficer()
+	end
+	return false
+end
+
+function AddonTable.PlayerIsPartyOrRaidLeader()
+	if IsInRaid and IsInRaid() then
+		return (IsRaidLeader and IsRaidLeader()) == true
+	end
+	if IsInGroup and IsInGroup() then
+		return (UnitIsGroupLeader and UnitIsGroupLeader("player")) == true
+	end
+	return false
+end
+
+function AddonTable.PlayerCanUseBigCommand(channelKey)
+	if channelKey == "s" then
+		return true
+	end
+	if channelKey == "g" or channelKey == "o" then
+		return AddonTable.PlayerIsGuildOfficerOrLeader()
+	end
+	if channelKey == "p" or channelKey == "r" then
+		return AddonTable.PlayerIsGuildOfficerOrLeader() or AddonTable.PlayerIsPartyOrRaidLeader()
 	end
 	return false
 end

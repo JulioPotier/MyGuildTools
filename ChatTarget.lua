@@ -32,25 +32,6 @@ local function NormalizeTargetName(name)
 	return name
 end
 
-function AddonTable.EnsureMGTChatTargetConfig()
-	if type(MGTConfig) ~= "table" then
-		MGTConfig = {}
-	end
-	if MGTConfig.TargetPlayerFromChat == nil then
-		MGTConfig.TargetPlayerFromChat = "DISABLED"
-	end
-end
-
-function AddonTable.IsChatTargetEnabled()
-	AddonTable.EnsureMGTChatTargetConfig()
-	return MGTConfig.TargetPlayerFromChat == "ENABLED"
-end
-
-function AddonTable.SetChatTargetEnabled(enabled)
-	AddonTable.EnsureMGTChatTargetConfig()
-	MGTConfig.TargetPlayerFromChat = enabled and "ENABLED" or "DISABLED"
-end
-
 local function GetContextPlayerName(contextData)
 	if not contextData then
 		return nil
@@ -180,9 +161,6 @@ local function RegisterChatTargetMenu(menuType, requireChatContext)
 	end
 
 	Menu.ModifyMenu(menuType, function(ownerRegion, rootDescription, contextData)
-		if not AddonTable.IsChatTargetEnabled() then
-			return
-		end
 		if requireChatContext and not IsChatPlayerContext(ownerRegion, contextData) then
 			return
 		end

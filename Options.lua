@@ -67,7 +67,7 @@ local function RefreshBigCommandHint()
 	if not lblBigCommandHint or not optionsScroll then
 		return
 	end
-	local show = AddonTable.PlayerIsGuildOfficerOrLeader and AddonTable.PlayerIsGuildOfficerOrLeader()
+	local show = true
 	lblBigCommandHint:SetShown(show)
 	local scrollBottom = OPTIONS_SCROLL_BOTTOM_DEFAULT
 	if show then
@@ -381,23 +381,35 @@ lblInvitationsSection:SetText(L["Invitations"])
 
 local guildInviteOpts = {}
 
-guildInviteOpts.checkbox = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
-guildInviteOpts.checkbox:SetPoint("TOPLEFT", lblInvitationsSection, "BOTTOMLEFT", 0, -8)
-
-guildInviteOpts.label = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
-guildInviteOpts.label:SetPoint("LEFT", guildInviteOpts.checkbox, "RIGHT", 0, 1)
-guildInviteOpts.label:SetText(L["Add a right-click menu to /ginvite"])
+local lblGuildInviteFeature = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblGuildInviteFeature:SetPoint("TOPLEFT", lblInvitationsSection, "BOTTOMLEFT", 0, -8)
+lblGuildInviteFeature:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
+lblGuildInviteFeature:SetJustifyH("LEFT")
+lblGuildInviteFeature:SetText(L["Guild invite menu feature"])
 
 guildInviteOpts.hint = invitationsBox:CreateFontString(nil, nil, "GameFontDisableSmall")
-guildInviteOpts.hint:SetPoint("TOPLEFT", guildInviteOpts.checkbox, "BOTTOMLEFT", 16, -8)
+guildInviteOpts.hint:SetPoint("TOPLEFT", lblGuildInviteFeature, "BOTTOMLEFT", 0, -4)
 guildInviteOpts.hint:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
 guildInviteOpts.hint:SetJustifyH("LEFT")
 guildInviteOpts.hint:SetJustifyV("TOP")
 guildInviteOpts.hint:SetSpacing(4)
 guildInviteOpts.hint:SetText(L["Guild invite key hint"])
 
+local lblChatTargetFeature = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblChatTargetFeature:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", 0, -8)
+lblChatTargetFeature:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
+lblChatTargetFeature:SetJustifyH("LEFT")
+lblChatTargetFeature:SetText(L["Chat target menu feature"])
+
+local lblChatTargetHint = invitationsBox:CreateFontString(nil, nil, "GameFontDisableSmall")
+lblChatTargetHint:SetPoint("TOPLEFT", lblChatTargetFeature, "BOTTOMLEFT", 0, -4)
+lblChatTargetHint:SetPoint("RIGHT", invitationsBox, "RIGHT", -12, 0)
+lblChatTargetHint:SetJustifyH("LEFT")
+lblChatTargetHint:SetSpacing(4)
+lblChatTargetHint:SetText(L["Chat target key hint"])
+
 local chkMinimapBlockButton = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
-chkMinimapBlockButton:SetPoint("TOPLEFT", guildInviteOpts.hint, "BOTTOMLEFT", -16, -8)
+chkMinimapBlockButton:SetPoint("TOPLEFT", lblChatTargetHint, "BOTTOMLEFT", 0, -8)
 
 local lblMinimapBlockButton = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
 lblMinimapBlockButton:SetPoint("LEFT", chkMinimapBlockButton, "RIGHT", 0, 1)
@@ -416,6 +428,13 @@ if GetLocale() == "frFR" then
 else
 	UIDropDownMenu_SetWidth(ddGroupBlockMode, 200)
 end
+
+local chkAllowGuildiesInvite = CreateFrame("CheckButton", nil, invitationsBox, "OptionsBaseCheckButtonTemplate")
+chkAllowGuildiesInvite:SetPoint("TOPLEFT", ddGroupBlockMode, "BOTTOMLEFT", 16, -4)
+
+local lblAllowGuildiesInvite = invitationsBox:CreateFontString(nil, nil, "GameFontHighlight")
+lblAllowGuildiesInvite:SetPoint("LEFT", chkAllowGuildiesInvite, "RIGHT", 0, 1)
+lblAllowGuildiesInvite:SetText(L["Guildies can always invite"])
 
 local GROUP_BLOCK_MODE_OPTIONS = {
 	AddonTable.GROUP_INVITE_BLOCK_NONE,
@@ -469,9 +488,12 @@ groupBlockDropdownInit:SetScript("OnEvent", function(self, event, addon)
 end)
 
 local function UpdateInvitationsBoxHeight()
+	local inviteFeatureH = math.max(lblGuildInviteFeature:GetStringHeight() or 0, 14)
 	local hintH = math.max(guildInviteOpts.hint:GetStringHeight() or 0, 14)
-	local h = 8 + 16 + 4 + 22 + 8 + hintH + 8
-		+ 22 + 8 + 22 + 8 + 14 + 8 + 32 + 14
+	local targetFeatureH = math.max(lblChatTargetFeature:GetStringHeight() or 0, 14)
+	local targetHintH = math.max(lblChatTargetHint:GetStringHeight() or 0, 14)
+	local h = 8 + 16 + 4 + inviteFeatureH + 4 + hintH + 8 + targetFeatureH + 4 + targetHintH + 8
+		+ 22 + 8 + 22 + 8 + 14 + 8 + 32 + 8 + 22 + 14
 	invitationsBox:SetHeight(h)
 end
 
@@ -491,6 +513,9 @@ function AddonTable.RefreshInvitationsOptionsUI()
 	if AddonTable.IsMinimapBlockButtonEnabled then
 		chkMinimapBlockButton:SetChecked(AddonTable.IsMinimapBlockButtonEnabled())
 	end
+	if AddonTable.IsGroupInviteAllowGuildiesEnabled then
+		chkAllowGuildiesInvite:SetChecked(AddonTable.IsGroupInviteAllowGuildiesEnabled())
+	end
 	RefreshGroupBlockModeDropdown()
 	UpdateInvitationsBoxHeight()
 	if UpdateOptionsScrollHeight then
@@ -505,61 +530,11 @@ chkMinimapBlockButton:SetScript("OnClick", function(frame)
 	AddonTable.SetMinimapBlockButtonEnabled(frame:GetChecked() == true)
 end)
 
-local function RefreshGuildInviteOptionsUI()
-	local checkbox = guildInviteOpts.checkbox
-	local label = guildInviteOpts.label
-	local hint = guildInviteOpts.hint
-	if not checkbox or not label or not hint then
+chkAllowGuildiesInvite:SetScript("OnClick", function(frame)
+	if not AddonTable.SetGroupInviteAllowGuildiesEnabled then
 		return
 	end
-
-	if AddonTable.SyncGuildInviteMenuForCharacter then
-		AddonTable.SyncGuildInviteMenuForCharacter()
-	end
-
-	local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
-	local wantsEnabled = setting == "ENABLED"
-	local canUse = AddonTable.PlayerCanGuildInvite and AddonTable.PlayerCanGuildInvite()
-	checkbox:SetChecked(wantsEnabled)
-	if canUse then
-		checkbox:Enable()
-		label:SetTextColor(1, 0.82, 0)
-		hint:SetTextColor(0.5, 0.5, 0.5)
-	else
-		checkbox:Disable()
-		label:SetTextColor(0.5, 0.5, 0.5)
-		hint:SetTextColor(0.35, 0.35, 0.35)
-	end
-end
-
-AddonTable.RefreshGuildInviteOptionsUI = RefreshGuildInviteOptionsUI
-
-guildInviteOpts.checkbox:SetScript("OnClick", function(frame)
-	if not AddonTable.SetGuildInviteMenuSetting then
-		return
-	end
-	if not AddonTable.PlayerCanGuildInvite or not AddonTable.PlayerCanGuildInvite() then
-		local setting = AddonTable.GetGuildInviteMenuSetting and AddonTable.GetGuildInviteMenuSetting()
-		frame:SetChecked(setting == "ENABLED")
-		if not IsInGuild or not IsInGuild() then
-			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You are not in a guild."])
-		else
-			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["You don't have permission to invite guild members."])
-		end
-		return
-	end
-	AddonTable.SetGuildInviteMenuSetting(frame:GetChecked() and "ENABLED" or "DISABLED")
-end)
-
-local guildInviteOptionsWatcher = CreateFrame("Frame")
-guildInviteOptionsWatcher:RegisterEvent("ADDON_LOADED")
-guildInviteOptionsWatcher:RegisterEvent("PLAYER_GUILD_UPDATE")
-guildInviteOptionsWatcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-guildInviteOptionsWatcher:SetScript("OnEvent", function(self, event, arg1)
-	if event == "ADDON_LOADED" and arg1 ~= AddonName then
-		return
-	end
-	RefreshGuildInviteOptionsUI()
+	AddonTable.SetGroupInviteAllowGuildiesEnabled(frame:GetChecked() == true)
 end)
 
 -- Honor Guild Death
@@ -1135,7 +1110,6 @@ optionsScrollChild:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
-	RefreshGuildInviteOptionsUI()
 	if AddonTable.RefreshInvitationsOptionsUI then
 		AddonTable.RefreshInvitationsOptionsUI()
 	end
@@ -1148,7 +1122,6 @@ GTIOFrame:SetScript("OnShow", function()
 	UpdateOptionsScrollHeight()
 	RefreshHonorGuildDeathUI()
 	RefreshFontSizeDropdown()
-	RefreshGuildInviteOptionsUI()
 	if AddonTable.RefreshInvitationsOptionsUI then
 		AddonTable.RefreshInvitationsOptionsUI()
 	end
@@ -1159,7 +1132,6 @@ GTIOFrame:SetScript("OnShow", function()
 end)
 UpdateOptionsScrollHeight()
 RefreshHonorGuildDeathUI()
-RefreshGuildInviteOptionsUI()
 if AddonTable.RefreshBlacklistOptionsUI then
 	AddonTable.RefreshBlacklistOptionsUI()
 end
@@ -1205,7 +1177,11 @@ elseif msg:match("^big ") then
 	end
 	local chatType = ({ p = "PARTY", g = "GUILD", s = "SAY", o = "OFFICER", r = "RAID" })[channelKey]
 	if chatType and bigMsg and bigMsg ~= "" and SendChatMessage then
-		pcall(SendChatMessage, "一> " .. bigMsg .. " <一", chatType)
+		if AddonTable.PlayerCanUseBigCommand and not AddonTable.PlayerCanUseBigCommand(channelKey) then
+			DEFAULT_CHAT_FRAME:AddMessage("|cFF0088FF[MyGuildTools]|r " .. L["Big command no permission"])
+		else
+			pcall(SendChatMessage, "一> " .. bigMsg .. " <一", chatType)
+		end
 	end
 end
 

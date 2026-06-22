@@ -29,6 +29,7 @@ local MINIMAP_BLOCK_MENU_MODES = {
 }
 
 local partyInvitePopupHookInstalled = false
+local lastPartyInviterName
 
 local BLOCK_MODE_LABELS = {
 	[AddonTable.GROUP_INVITE_BLOCK_NONE] = function()
@@ -66,6 +67,9 @@ function AddonTable.EnsureMGTGroupInviteConfig()
 	end
 	if MGTConfig.MinimapBlockAngle == nil then
 		MGTConfig.MinimapBlockAngle = MINIMAP_ANGLE
+	end
+	if MGTConfig.GroupInviteAllowGuildies == nil then
+		MGTConfig.GroupInviteAllowGuildies = "ENABLED"
 	end
 	MGTConfig.GroupInviteBlockMode = NormalizeBlockMode(MGTConfig.GroupInviteBlockMode)
 	if not MGTConfig.GroupInviteAlwaysOnMigrated then
@@ -151,6 +155,19 @@ function AddonTable.SetMinimapBlockButtonEnabled(enabled)
 	end
 end
 
+function AddonTable.IsGroupInviteAllowGuildiesEnabled()
+	AddonTable.EnsureMGTGroupInviteConfig()
+	return MGTConfig.GroupInviteAllowGuildies == "ENABLED"
+end
+
+function AddonTable.SetGroupInviteAllowGuildiesEnabled(enabled)
+	AddonTable.EnsureMGTGroupInviteConfig()
+	MGTConfig.GroupInviteAllowGuildies = enabled and "ENABLED" or "DISABLED"
+	if AddonTable.RefreshInvitationsOptionsUI then
+		AddonTable.RefreshInvitationsOptionsUI()
+	end
+end
+
 function AddonTable.GetGroupInviteBlockModeLabel(mode)
 	mode = NormalizeBlockMode(mode or AddonTable.GetGroupInviteBlockMode())
 	local fn = BLOCK_MODE_LABELS[mode]
@@ -158,18 +175,54 @@ function AddonTable.GetGroupInviteBlockModeLabel(mode)
 end
 
 -- Same logic as v0.4.0 (before whisper keyword): checkbox on + mode decides blocking.
-local function ShouldDeclinePartyInvite()
+local function IsInviterGuildMember(inviterName)
+	if not IsInGuild or not IsInGuild() then
+		return false
+	end
+	inviterName = NormalizeInviterName(inviterName)
+	if inviterName == "" then
+		return false
+	end
+	if GuildRoster then
+		GuildRoster()
+	end
+	local n = GetNumGuildMembers and GetNumGuildMembers()
+	if not n or n <= 0 then
+		return false
+	end
+	local inviterLower = inviterName:lower()
+	for i = 1, n do
+		local rosterName = GetGuildRosterInfo and GetGuildRosterInfo(i)
+		if rosterName and rosterName ~= "" then
+			local memberName = NormalizeInviterName(rosterName)
+			if memberName:lower() == inviterLower then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function ShouldDeclinePartyInvite(inviterName)
 	if not AddonTable.IsGroupInviteBlockActive() then
 		return false
 	end
 	local mode = AddonTable.GetGroupInviteBlockMode()
+	local wouldBlock = false
 	if mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS then
-		return true
+		wouldBlock = true
+	elseif mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT and InCombatLockdown() then
+		wouldBlock = true
 	end
-	if mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT and InCombatLockdown() then
-		return true
+	if not wouldBlock then
+		return false
 	end
-	return false
+	if AddonTable.IsGroupInviteAllowGuildiesEnabled()
+		and inviterName
+		and IsInviterGuildMember(inviterName) then
+		return false
+	end
+	return true
 end
 
 local function MessageContainsKeyword(message, keyword)
@@ -247,7 +300,7 @@ local function StartPendingInvite(inviterName)
 end
 
 local function TryDeclinePendingInvite(inviterName)
-	if not pendingInvite or not ShouldDeclinePartyInvite() then
+	if not pendingInvite or not ShouldDeclinePartyInvite(inviterName or pendingInvite.inviter) then
 		return
 	end
 	if NormalizeInviterName(inviterName) ~= pendingInvite.inviter then
@@ -258,7 +311,8 @@ local function TryDeclinePendingInvite(inviterName)
 end
 
 local function OnPartyInviteRequest(inviterName)
-	if not ShouldDeclinePartyInvite() then
+	lastPartyInviterName = inviterName
+	if not ShouldDeclinePartyInvite(inviterName) then
 		return
 	end
 	DeclinePartyInvite()
@@ -273,7 +327,7 @@ local function InstallPartyInvitePopupHook()
 		if which ~= "PARTY_INVITE" and which ~= "PARTY_INVITE_XREALM" then
 			return
 		end
-		if not ShouldDeclinePartyInvite() then
+		if not ShouldDeclinePartyInvite(lastPartyInviterName) then
 			return
 		end
 		if DeclineGroup then
