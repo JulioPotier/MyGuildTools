@@ -30,6 +30,7 @@ local MINIMAP_BLOCK_MENU_MODES = {
 
 local partyInvitePopupHookInstalled = false
 local lastPartyInviterName
+local guildMemberNames = {}
 
 local BLOCK_MODE_LABELS = {
 	[AddonTable.GROUP_INVITE_BLOCK_NONE] = function()
@@ -99,7 +100,113 @@ local function NormalizeInviterName(name)
 	return name:match("^([^%-]+)") or name
 end
 
-function AddonTable.IsGroupInviteKeywordMode()
+local function ExtractGuildRosterName(index)
+	if not GetGuildRosterInfo then
+		return nil
+	end
+	local rosterName = GetGuildRosterInfo(index)
+	if type(rosterName) ~= "string" or rosterName == "" then
+		local results = { GetGuildRosterInfo(index) }
+		rosterName = results[1]
+	end
+	if type(rosterName) ~= "string" or rosterName == "" then
+		return nil
+	end
+	return rosterName
+end
+
+local function RememberGuildMemberName(rosterName)
+	rosterName = TrimString(rosterName)
+	if rosterName == "" then
+		return
+	end
+	guildMemberNames[rosterName] = true
+	local nameOnly = rosterName:match("^([^%-]+)")
+	if nameOnly and nameOnly ~= rosterName then
+		guildMemberNames[nameOnly] = true
+	end
+end
+
+local function RebuildGuildMemberCache()
+	for key in pairs(guildMemberNames) do
+		guildMemberNames[key] = nil
+	end
+	if not IsInGuild or not IsInGuild() then
+		return
+	end
+	if GuildRoster then
+		GuildRoster()
+	end
+	local n = GetNumGuildMembers and GetNumGuildMembers()
+	if not n or n <= 0 then
+		return
+	end
+	for i = 1, n do
+		local rosterName = ExtractGuildRosterName(i)
+		if rosterName then
+			RememberGuildMemberName(rosterName)
+		end
+	end
+end
+
+-- Exact name match; only strips -Realm when one side includes a realm suffix.
+local function SameGuildPlayerName(inviterName, rosterName)
+	inviterName = TrimString(inviterName)
+	rosterName = TrimString(rosterName)
+	if inviterName == "" or rosterName == "" then
+		return false
+	end
+	if inviterName == rosterName then
+		return true
+	end
+	local inviterBase = inviterName:match("^([^%-]+)") or inviterName
+	local rosterBase = rosterName:match("^([^%-]+)") or rosterName
+	if inviterBase ~= rosterBase then
+		return false
+	end
+	return inviterName:find("-", 1, true) ~= nil or rosterName:find("-", 1, true) ~= nil
+end
+
+local function IsInviterGuildMember(inviterName)
+	if not IsInGuild or not IsInGuild() then
+		return false
+	end
+	inviterName = TrimString(inviterName)
+	if inviterName == "" then
+		return false
+	end
+	if guildMemberNames[inviterName] then
+		return true
+	end
+	local inviterBase = inviterName:match("^([^%-]+)")
+	if inviterBase and guildMemberNames[inviterBase] then
+		return true
+	end
+	if not next(guildMemberNames) then
+		RebuildGuildMemberCache()
+		if guildMemberNames[inviterName] then
+			return true
+		end
+		if inviterBase and guildMemberNames[inviterBase] then
+			return true
+		end
+	end
+	if GuildRoster then
+		GuildRoster()
+	end
+	local n = GetNumGuildMembers and GetNumGuildMembers()
+	if not n or n <= 0 then
+		return false
+	end
+	for i = 1, n do
+		local rosterName = ExtractGuildRosterName(i)
+		if rosterName and SameGuildPlayerName(inviterName, rosterName) then
+			RememberGuildMemberName(rosterName)
+			return true
+		end
+	end
+	return false
+end
 	local mode = AddonTable.GetGroupInviteBlockMode()
 	return mode == AddonTable.GROUP_INVITE_BLOCK_COMBAT
 		or mode == AddonTable.GROUP_INVITE_BLOCK_ALWAYS
@@ -172,35 +279,6 @@ function AddonTable.GetGroupInviteBlockModeLabel(mode)
 	mode = NormalizeBlockMode(mode or AddonTable.GetGroupInviteBlockMode())
 	local fn = BLOCK_MODE_LABELS[mode]
 	return fn and fn() or L["Not blocked"]
-end
-
--- Same logic as v0.4.0 (before whisper keyword): checkbox on + mode decides blocking.
-local function IsInviterGuildMember(inviterName)
-	if not IsInGuild or not IsInGuild() then
-		return false
-	end
-	inviterName = NormalizeInviterName(inviterName)
-	if inviterName == "" then
-		return false
-	end
-	if GuildRoster then
-		GuildRoster()
-	end
-	local n = GetNumGuildMembers and GetNumGuildMembers()
-	if not n or n <= 0 then
-		return false
-	end
-	local inviterLower = inviterName:lower()
-	for i = 1, n do
-		local rosterName = GetGuildRosterInfo and GetGuildRosterInfo(i)
-		if rosterName and rosterName ~= "" then
-			local memberName = NormalizeInviterName(rosterName)
-			if memberName:lower() == inviterLower then
-				return true
-			end
-		end
-	end
-	return false
 end
 
 local function ShouldDeclinePartyInvite(inviterName)
@@ -323,11 +401,14 @@ local function InstallPartyInvitePopupHook()
 		return
 	end
 	partyInvitePopupHookInstalled = true
-	hooksecurefunc("StaticPopup_Show", function(which)
+	hooksecurefunc("StaticPopup_Show", function(which, inviterName)
 		if which ~= "PARTY_INVITE" and which ~= "PARTY_INVITE_XREALM" then
 			return
 		end
-		if not ShouldDeclinePartyInvite(lastPartyInviterName) then
+		if type(inviterName) == "string" and inviterName ~= "" then
+			lastPartyInviterName = inviterName
+		end
+		if not ShouldDeclinePartyInvite(inviterName or lastPartyInviterName) then
 			return
 		end
 		if DeclineGroup then
@@ -543,6 +624,8 @@ end
 blockFrame = CreateFrame("Frame")
 blockFrame:RegisterEvent("ADDON_LOADED")
 blockFrame:RegisterEvent("PLAYER_LOGIN")
+blockFrame:RegisterEvent("PLAYER_GUILD_UPDATE")
+blockFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
 blockFrame:RegisterEvent("PARTY_INVITE_REQUEST")
 blockFrame:SetScript("OnEvent", function(_, event, arg1, ...)
 	if event == "ADDON_LOADED" and arg1 ~= AddonName then
@@ -557,6 +640,9 @@ blockFrame:SetScript("OnEvent", function(_, event, arg1, ...)
 		CreateMinimapButton()
 		AddonTable.RefreshGroupInviteBlocker()
 		AddonTable.RefreshGroupInviteMinimapButton()
+		RebuildGuildMemberCache()
+	elseif event == "PLAYER_GUILD_UPDATE" or event == "GUILD_ROSTER_UPDATE" then
+		RebuildGuildMemberCache()
 	elseif event == "PARTY_INVITE_REQUEST" then
 		OnPartyInviteRequest(...)
 	end
